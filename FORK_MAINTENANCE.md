@@ -6,10 +6,12 @@
 
 | 分支 | 作用 | 规则 |
 | --- | --- | --- |
+| `hw` | 自定义分支（仓库默认分支） | 承载所有自定义改动，部署镜像从这里构建 |
 | `main` | 上游镜像 | 只允许快进到 `upstream/main`，不放任何本地提交 |
-| `hw` | 自定义分支 | 承载所有自定义改动，部署镜像从这里构建 |
 
 `main` 保持纯净是这套模型的关键：同步永远不会产生冲突，也随时能看出自己落后上游多少个提交。所有冲突只发生在 `hw` 上。
+
+仓库的默认分支设为 `hw`：Dependabot 只读取默认分支上的 `.github/dependabot.yml`，而该文件已在 `hw` 中移除，因此不会再自动开依赖升级 PR；同时默认分支与部署分支一致，PR 基线和分支保护提示也落在真正使用的分支上。
 
 一次性初始化：
 
@@ -75,12 +77,12 @@ echo '<PAT，至少 read:packages>' | docker login ghcr.io -u ziling35 --passwor
 安装脚本的三个默认值都指向官方仓库，全部用环境变量覆盖：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/main/scripts/install-server-image.sh \
+curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/hw/scripts/install-server-image.sh \
 | sudo env \
     IMAGE_REPOSITORY=ghcr.io/ziling35/open-ai-canvas \
     CANVAS_IMAGE_TAG=sha-<完整commit> \
-    COMPOSE_URL=https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/main/docker-compose.deploy.yml \
-    UPDATER_INSTALL_URL=https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/main/scripts/install-host-updater.sh \
+    COMPOSE_URL=https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/hw/docker-compose.deploy.yml \
+    UPDATER_INSTALL_URL=https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/hw/scripts/install-host-updater.sh \
     bash
 ```
 
@@ -89,7 +91,7 @@ curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/main/scr
 更新器要从本 fork 的 Release 下载二进制：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/main/scripts/install-host-updater.sh \
+curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/hw/scripts/install-host-updater.sh \
 | sudo env REPOSITORY=ziling35/hongweiyuchuanmei bash
 ```
 
