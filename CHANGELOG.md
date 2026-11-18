@@ -1,6 +1,11 @@
 # CHANGELOG
 ## Unreleased
 
+## v1.8.6.1
+- Fork 维护：`hw` 分支承载自定义改动并接入镜像构建，`main` 快进跟随上游；新增上游同步脚本，冲突只发生在 `hw`。
+- 部署与更新：安装与更新脚本支持 `IMAGE_REPOSITORY`、`REPOSITORY`、`COMPOSE_URL`、`UPDATER_INSTALL_URL` 指向本 fork；镜像推送到 `ghcr.io/ziling35/open-ai-canvas-backend|web|yingce-agent`，`v*` 标签同时发布 `docker-compose.deploy.yml`、Host Updater 二进制与 `SHA256SUMS`，宿主机可用 `CANVAS_UPDATER_REPOSITORY` 把在线更新来源固定到本仓库。
+- 升级说明：数据库目标版本仍为 Schema 105，与 v1.8.6 一致，本版不含迁移；已运行 v1.8.6 的部署可直接切换镜像，需同步更新 Web、Backend 与 yingce-agent。
+
 ## v1.8.6
 - 短剧制作：完善分镜审稿、逐镜编辑、资产引用和小影协作；支持按要求反复修改提示词并确认采用，保存成功后才收起候选，失败可重试。原著章节与分集均提供明确改名入口，章节引用同步更新。
 - 官方素材与创作历史：新增官方素材库、推荐及导入能力，支持音频参考与音色绑定；创作对话按账号隔离并支持跨设备同步，素材按节点和提示词命名并可手动改名。
