@@ -725,6 +725,10 @@ func (r *dramaRun) advanceEpisode(e *model.DramaEpisode, loadedStage string) err
 // requestedOnly 时只提交用户明确请求（queued）的段，用于全集尚未进入视频阶段时。返回全部段视频是否就绪。
 // 等待条件与 dramaVideoWaitReason 同源，详情页显示的等待原因就是这里卡住的条件。
 func (r *dramaRun) enqueueSegmentVideos(e *model.DramaEpisode, segments []model.DramaSegment, requestedOnly bool) (bool, error) {
+	// 逐段确认：只提交用户点过生成的段，其余段停在"等待你确认本段视频"。
+	if r.settings.SegmentConfirm {
+		requestedOnly = true
+	}
 	if len(segments) == 0 {
 		return false, nil
 	}
@@ -759,6 +763,10 @@ func (r *dramaRun) enqueueSegmentVideos(e *model.DramaEpisode, segments []model.
 // enqueueParallelSegmentVideos 是并行出片的提交：段与段互不依赖，过期、失败或未请求的段只影响自己。
 // r.enqueue 按作业键去重，已在队列或生成中的段不会重复提交。
 func (r *dramaRun) enqueueParallelSegmentVideos(e *model.DramaEpisode, segments []model.DramaSegment, requestedOnly bool) (bool, error) {
+	// 逐段确认：只提交用户点过生成的段，其余段停在"等待你确认本段视频"。
+	if r.settings.SegmentConfirm {
+		requestedOnly = true
+	}
 	var shots []model.DramaShot
 	ready := true
 	for i, seg := range segments {

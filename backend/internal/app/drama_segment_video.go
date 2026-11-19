@@ -61,6 +61,10 @@ func dramaVideoWaitReason(settings DramaSettings, p *model.DramaProduction, e *m
 	if !dramaPromptReady(segments[index]) {
 		return "等待本段视频提示词撰写完成"
 	}
+	// 逐段确认模式下，未点过生成的段停在等待确认，而不是被调度按顺序排进去。
+	if settings.SegmentConfirm && segments[index].VideoStatus == "" && !dramaSegmentVideoDone(segments[index]) {
+		return "等待你确认本段视频"
+	}
 	if extractPending {
 		return "等待补全后出现角色、道具或场景的外貌"
 	}

@@ -186,6 +186,9 @@ type DramaSettings struct {
 	VideoContinuity string `json:"videoContinuity"`
 	// VideoResolution 是剧情段视频的分辨率档位（取自视频模型声明的分辨率，如 720p、1080p）；空串按模型默认。
 	VideoResolution string `json:"videoResolution,omitempty"`
+	// SegmentConfirm 为 true 时，进入视频阶段后只提交用户逐段点过生成的段，
+	// 系统不再按顺序自动排完整集；"放行整集"仍是用户的明确动作。
+	SegmentConfirm bool `json:"segmentConfirm"`
 }
 
 // 剧情段视频衔接方式：tail_frame 第 2 段起用上一段视频的最后一帧做首帧，同集各段按顺序生成；

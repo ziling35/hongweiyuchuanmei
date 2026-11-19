@@ -120,6 +120,8 @@ export type DramaSettings = {
     chaptersPerEpisode?: number;
     /** 剧情段视频衔接方式；缺省按尾帧续接。 */
     videoContinuity?: DramaVideoContinuity;
+    /** 逐段确认：开启后进入视频阶段只生成你点过确认的段，系统不再按顺序自动排完整集。 */
+    segmentConfirm?: boolean;
 };
 
 /**

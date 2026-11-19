@@ -1040,6 +1040,15 @@ export function SettingsPanel({ projectId, summary, cast, onChanged }: { project
                                 {settings.mediaMode !== current.mediaMode && settings.mediaMode === "manual" ? <p className="drama-cfg-note">改为手动后，未放行的集停在当前阶段，已提交的任务会做完。</p> : null}
                             </section>
                             <section className="drama-cfg-card">
+                                <SettingsTitle title="分镜生成确认" detail="开启后不自动按顺序出片，你点哪段才生成哪段" />
+                                <Checkbox checked={settings.segmentConfirm === true} onChange={(event) => setSettings({ ...settings, segmentConfirm: event.target.checked })}>
+                                    逐段确认后再生成本段视频
+                                </Checkbox>
+                                <p className="drama-cfg-note">
+                                    {settings.segmentConfirm ? "整集进入视频阶段后也只排队你点过「生成」的剧情段；「全部生成视频」仍是你主动放行。" : "关闭时，整集进入视频阶段会按顺序自动提交所有剧情段。改设置不影响已提交的任务。"}
+                                </p>
+                            </section>
+                            <section className="drama-cfg-card">
                                 <SettingsTitle title="段落衔接" detail="决定同一集的剧情段能否同时生成" />
                                 <CompactRadios
                                     label="段落衔接"
