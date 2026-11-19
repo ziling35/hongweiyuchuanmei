@@ -1,4 +1,4 @@
-import { defaultModelCapabilityConfig } from "@/lib/model-capabilities";
+import { defaultModelCapabilityConfig, videoDurationAllowed, videoDurationOptions } from "@/lib/model-capabilities";
 import { imageHostControls, imageParameterAccepts, initializeImageRatioDefaults, resolveImageParameters, type ImageParameter } from "@/lib/image-parameters";
 import { imageResolutionTiers } from "@/lib/image-size-presets";
 import { normalizeTierResolution } from "@/lib/model-pricing";
@@ -124,6 +124,10 @@ export function pricingDimensions(values: PricingContext): PricingDimension[] {
             video.operations.filter((operation) => ["text_to_video", "image_to_video", "video_to_video", "enhance", "depth"].includes(operation)),
         );
         add("resolution", "分辨率", [...video.resolutions, ...(video.fixedScreenSpec?.resolutions || [])].map(normalizeTierResolution));
+        if (video.duration) {
+            const durations = videoDurationOptions(video);
+            if (durations.length) add("videoSeconds", "生成时长", durations.map(String));
+        }
         // processing 的计价合同固定声明三档（后端 videoProcessingFPSBands）；
         // fpsOptions 只限制用户可选的输出帧率，keep_source 不需要提供该列表。
         if (video.processing && video.defaultOperation !== "depth") add("fpsBand", "输出帧率档", ["le30", "le60", "le120"]);
@@ -170,7 +174,12 @@ export function buildPricingTemplate(id: string, selectedDimensions: string[], v
             enabled: false,
         },
     ];
-    for (const dimension of selected) tiers = tiers.flatMap((tier) => dimension.values.map((value) => (dimension.imageParameter ? { ...tier, imageSelector: { ...tier.imageSelector, [dimension.field]: value } } : { ...tier, [dimension.field]: value })));
+    for (const dimension of selected)
+        tiers = tiers.flatMap((tier) =>
+            dimension.values.map((value) =>
+                dimension.imageParameter ? { ...tier, imageSelector: { ...tier.imageSelector, [dimension.field]: value } } : dimension.field === "videoSeconds" ? { ...tier, videoSeconds: Number(value) } : { ...tier, [dimension.field]: value },
+            ),
+        );
     return tiers;
 }
 
@@ -212,6 +221,8 @@ export function priceSelectorIssues(values: PricingContext & { priceTiers: Price
                 for (const field of ["resolution", "fpsBand"] as const) {
                     if (specific(tier[field]) && !dimensions.find((item) => item.id === field)?.values.includes(field === "resolution" ? normalizeTierResolution(tier[field]) : tier[field])) fail(`条件 ${field}=${tier[field]} 不受当前参数支持`);
                 }
+                const seconds = Number(tier.videoSeconds || 0);
+                if (seconds > 0 && !videoDurationAllowed(values.capabilityConfig.video, Math.round(seconds))) fail(`生成时长 ${seconds} 秒不在该视频模型支持范围内`);
             }
         }
         return skuSelectorFromForm(values.capability, tier, values.capabilityConfig);

@@ -1,6 +1,6 @@
 import type { ModelCapabilityChoice } from "@/components/model-protocol-picker";
 import type { FormInstance } from "antd";
-import { defaultModelCapabilityConfig, normalizeLegacyImageResolutionConfig, normalizeModelCapabilityConfig, type ModelCapabilityConfig } from "@/lib/model-capabilities";
+import { defaultModelCapabilityConfig, normalizeLegacyImageResolutionConfig, normalizeModelCapabilityConfig, videoDurationAllowed, type ModelCapabilityConfig } from "@/lib/model-capabilities";
 import { imagePresetForRatio, imageSizePresets } from "@/lib/image-size-presets";
 import { modelProtocolSupportsTokenBilling, type ModelProtocolDefinition } from "@/lib/model-protocols";
 import type { ChannelModel } from "@/services/api/wallet";
@@ -113,7 +113,7 @@ export function changeChannelModelCapability(values: ChannelModelFormValues, pro
                 quality: "*",
                 size: "*",
                 resolution: "*",
-                videoSeconds: 0,
+                videoSeconds: capability === "video" ? tier.videoSeconds : 0,
                 videoGenerateAudio: "*",
                 imageCount: 0,
             })),
@@ -218,8 +218,12 @@ export function validateChannelModelPrices(values: Pick<ChannelModelFormValues, 
                 (image?.quality.supported !== false && specific(tier.quality)) ||
                 specific(tier.resolution) ||
                 specific(tier.size);
-            if (!(specific(tier.operation) || (capability === "image" && imageCondition) || (capability === "video" && (specific(tier.resolution) || (values.capabilityConfig?.video?.processing && specific(tier.fpsBand))))))
-                fail("规格价格至少需要一个匹配条件；统一价格请选择默认价格");
+            if (capability === "video" && Number(tier.videoSeconds || 0) > 0) {
+                const profile = values.capabilityConfig?.video;
+                if (profile && !videoDurationAllowed(profile, Math.round(Number(tier.videoSeconds)))) fail(`生成时长 ${tier.videoSeconds} 秒不在该视频模型支持范围内`);
+            }
+            const hasVideoCondition = specific(tier.resolution) || Number(tier.videoSeconds || 0) > 0 || Boolean(values.capabilityConfig?.video?.processing && specific(tier.fpsBand));
+            if (!(specific(tier.operation) || (capability === "image" && imageCondition) || (capability === "video" && hasVideoCondition))) fail("规格价格至少需要一个匹配条件；统一价格请选择默认价格");
         }
         const prices =
             tier.billingMode === "image_usage"

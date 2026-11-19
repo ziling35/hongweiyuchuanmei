@@ -328,12 +328,16 @@ describe("pricing write validation", () => {
         video.priceTiers[0].outputTokenPrice = 0.000001;
         expect(() => validateChannelModelPrices(video)).not.toThrow();
     });
-    test("rejects removed video conditions and accepts visible operation or resolution matches", () => {
-        for (const hiddenCondition of [{ videoGenerateAudio: "false" }, { videoSeconds: 5 }, { imageCount: 2 }]) {
+    test("rejects hidden video conditions and accepts visible operation, resolution or duration matches", () => {
+        for (const hiddenCondition of [{ videoGenerateAudio: "false" }, { imageCount: 2 }]) {
             expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", priceTiers: [{ ...defaultPriceTier("advanced"), billingMode: "token", ...hiddenCondition }] })).toThrow("匹配条件");
         }
         expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", priceTiers: [{ ...defaultPriceTier("advanced"), operation: "image_to_video" }] })).not.toThrow();
         expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", priceTiers: [{ ...defaultPriceTier("advanced"), resolution: "1080p" }] })).not.toThrow();
+        // 生成时长是可见匹配条件：只有时长也能成档，但必须落在模型声明的时长范围内。
+        const videoConfig = defaultModelCapabilityConfig("volcengine-ark-video", "seedance");
+        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSeconds: 5 }] })).not.toThrow();
+        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSeconds: 999 }] })).toThrow("生成时长");
     });
     test("requires reference video prices only when reference video billing is enabled", () => {
         const video = { ...draft, capability: "video" as const, protocol: "volcengine-ark-video" };

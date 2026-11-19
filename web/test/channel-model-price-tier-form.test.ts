@@ -73,14 +73,17 @@ describe("channel model price tier defaults", () => {
         expect(priceTierToForm({ ...base, selector: { videoGenerateAudio: "false" } })).toMatchObject({ matchMode: "default", videoGenerateAudio: "false" });
     });
 
-    test("keeps video matching limited to operation and resolution", () => {
+    test("keeps video matching to operation, resolution and duration", () => {
         for (const videoGenerateAudio of ["true", "false"]) {
             const tier = { ...defaultPriceTier("advanced"), operation: "image_to_video", resolution: "1080p", videoSeconds: 10, videoGenerateAudio, imageCount: 2 };
-            expect(skuSelectorFromForm("video", tier)).toEqual({ operation: "image_to_video", vquality: "1080p" });
-            expect(priceTierVideoSecondsFromForm("video", tier)).toBe(0);
+            // 生成时长现在会写进选择器，后端按 selector.videoSeconds 精确匹配价格档。
+            expect(skuSelectorFromForm("video", tier)).toEqual({ operation: "image_to_video", vquality: "1080p", videoSeconds: "10" });
+            expect(priceTierVideoSecondsFromForm("video", tier)).toBe(10);
+            // 非视频能力不写时长选择器。
             expect(skuSelectorFromForm("image", { ...defaultPriceTier("advanced"), videoSeconds: 10, videoGenerateAudio, imageCount: 2 })).toEqual({});
         }
         expect(skuSelectorFromForm("video", defaultPriceTier("advanced"))).toEqual({});
+        expect(priceTierVideoSecondsFromForm("video", defaultPriceTier("advanced"))).toBe(0);
     });
 
     test("video Token writes discard hidden text prices without changing the configured video rate", () => {

@@ -1,6 +1,6 @@
 import { Alert, Button, Form, Input, InputNumber, Segmented, Switch, type FormInstance } from "antd";
 import { Trash2 } from "lucide-react";
-import type { ModelCapabilityConfig } from "@/lib/model-capabilities";
+import { videoDurationOptions, type ModelCapabilityConfig } from "@/lib/model-capabilities";
 import { modelProtocolSupportsTokenBilling, type ModelProtocol } from "@/lib/model-protocols";
 import type { ModelCapabilityChoice as EditableCapability } from "@/components/model-protocol-picker";
 import type { ChannelModelFormValues as FormValues } from "./channel-model-editor-form";
@@ -46,6 +46,8 @@ export function PriceTierFields({
     const staleTierUpstream = matchMode === "default" && tierUpstream && modelUpstream && tierUpstream !== modelUpstream ? tierUpstream : "";
     const video = capabilityConfig?.video;
     const image = capabilityConfig?.image;
+    // 生成时长选项直接来自模型能力：枚举就列枚举值，区间按 step 展开。
+    const durationOptions = video?.duration ? videoDurationOptions(video) : [];
     const resolutionOptions = Array.from(new Set([...(video?.resolutions || []), ...(protocol === "autodl-comfyui" ? video?.fixedScreenSpec?.resolutions || [] : [])]));
     const tokenEnabled = modelProtocolSupportsTokenBilling(capability, protocol);
     const isVideo = capability === "video";
@@ -71,7 +73,7 @@ export function PriceTierFields({
                     <span className="admin-price-tier-card-index">{String(ordinal).padStart(2, "0")}</span>
                     <div className="admin-price-tier-card-heading-copy">
                         <div className="admin-price-tier-card-title">{matchMode === "default" ? "默认价格" : `规格价格 ${ordinal}`}</div>
-                        <div className="admin-price-tier-card-summary">{matchMode === "default" ? "所有请求使用同一价格" : isVideo ? "按生成方式与分辨率匹配" : "按生成方式、画质、分辨率或尺寸匹配"}</div>
+                        <div className="admin-price-tier-card-summary">{matchMode === "default" ? "所有请求使用同一价格" : isVideo ? "按生成方式、分辨率与时长匹配" : "按生成方式、画质、分辨率或尺寸匹配"}</div>
                     </div>
                 </div>
                 <div className="admin-price-tier-card-actions">
@@ -130,6 +132,11 @@ export function PriceTierFields({
                                 {isVideo ? (
                                     <Form.Item className="mb-0" name={[index, "resolution"]} label="分辨率" rules={[{ required: true, message: "请选择分辨率" }]}>
                                         <Select options={[{ label: "任意分辨率", value: "*" }, ...resolutionOptions.map((value) => ({ label: value.toUpperCase(), value: normalizeTierResolution(value) }))]} />
+                                    </Form.Item>
+                                ) : null}
+                                {isVideo && durationOptions.length ? (
+                                    <Form.Item className="mb-0" name={[index, "videoSeconds"]} label="生成时长" tooltip="按生成秒数精确匹配价格档，0 表示任意时长；可选时长来自该模型能力里声明的时长枚举或区间。">
+                                        <Select options={[{ label: "任意时长", value: 0 }, ...durationOptions.map((seconds) => ({ label: `${seconds} 秒`, value: seconds }))]} />
                                     </Form.Item>
                                 ) : null}
                                 {isVideo && video?.processing && video.defaultOperation !== "depth" ? (
@@ -249,7 +256,7 @@ export function PriceTierFields({
                                 <strong>视频 Token 计费</strong>
                                 <span>
                                     {referenceVideoBilling ? "估算：宽 × 高 × 24 帧/秒 ×（输出时长 + 参考视频时长）÷ 1024；挂参考视频时按带参考视频价格计费。" : "估算：宽 × 高 × 24 帧/秒 × 输出时长 ÷ 1024；参考视频不计费。"}
-                                    优先按上游有效用量结算，无用量时使用公式，授权预留 10% 会在结算后补扣或退回。
+                                    优先按上游有效用量结算，无用量时使用公式；授权预留比例见后台「积分运营 → 积分策略」，预留部分会在结算后补扣或退回。
                                 </span>
                             </div>
                         ) : null}
