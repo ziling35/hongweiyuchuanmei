@@ -53,7 +53,7 @@ func (s *Service) QuoteChannelModel(userID string, req ChannelModelQuoteRequest)
 		return nil, err
 	}
 	config = input["config"].(map[string]any)
-	estimate := estimateTaskBillingTokens(input, req.Intent.Capability)
+	estimate := s.tokensWithPolicyMargin(input, req.Intent.Capability)
 	intent := ModelRequestIntentFromTaskInput(input, "canvas_"+req.Intent.Capability, req.Intent.Operation)
 	order, err := s.newBillingOrderWithPriceTier(userID, "", "quote", req.ChannelID, req.ModelKey, req.Intent.Capability, "model_quote", requestedBillingQuantity(req.Intent.Capability, config), estimate, stringValue(config["priceTierId"]), intent)
 	if err != nil {
@@ -175,7 +175,7 @@ func (s *Service) QuoteLogicalModel(userID string, logicalModelID string, intent
 	if capability != "video" && capability != "audio" {
 		quantity = 1
 	}
-	tokenEstimate := estimateTaskBillingTokens(input, capability)
+	tokenEstimate := s.tokensWithPolicyMargin(input, capability)
 
 	if routed.LogicalModel.PricePolicy == "channel" {
 		priceTierID := ""

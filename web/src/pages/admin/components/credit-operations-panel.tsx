@@ -18,7 +18,7 @@ export type CreditOperation = "policy" | "adjustment" | null;
 type AdjustmentFormValues = { userId: string; amount: number; note: string };
 type ResolutionFormValues = { note: string };
 type PolicyMultiplierRow = { model?: string; multiplier?: number };
-type PolicyFormValues = { signupBonus: number; checkinBonus: number; defaultMultiplier: number; modelMultipliers: PolicyMultiplierRow[] };
+type PolicyFormValues = { signupBonus: number; checkinBonus: number; defaultMultiplier: number; videoReserveMarginPercent: number; modelMultipliers: PolicyMultiplierRow[] };
 type BillingResolutionAction = "settle" | "refund";
 type AdjustmentUser = AdminReferenceData["users"][number] & Partial<Pick<AdminUser, "email" | "availableMicrocredits" | "reservedMicrocredits">>;
 type BillingResolutionTarget = { kind: "single"; order: BillingOrder; action: BillingResolutionAction } | { kind: "batch"; orders: BillingOrder[]; action: BillingResolutionAction };
@@ -182,6 +182,7 @@ export default function CreditOperationsPanel({ users, activeOperation, onOperat
                 signupBonusMicrocredits: toMicrocredits(values.signupBonus),
                 checkinBonusMicrocredits: toMicrocredits(values.checkinBonus),
                 defaultMultiplierBasisPoints: Math.round(values.defaultMultiplier * 10_000),
+                videoReserveMarginBasisPoints: Math.round((values.videoReserveMarginPercent ?? 10) * 100),
                 modelMultiplierBasisPoints,
             });
             setPolicy(result.policy);
@@ -697,6 +698,17 @@ export default function CreditOperationsPanel({ users, activeOperation, onOperat
                                 >
                                     <InputNumber className="w-full" min={0.0001} max={100} precision={4} />
                                 </Form.Item>
+                                <Form.Item
+                                    name="videoReserveMarginPercent"
+                                    label="视频 Token 预留比例（%）"
+                                    tooltip="预授权时按公式 Token 乘以此比例多冻结，结算后按实际用量补扣或退回；0 表示不预留。"
+                                    rules={[
+                                        { required: true, message: "请填写预留比例" },
+                                        { type: "number", min: 0, max: 50, message: "请输入 0–50" },
+                                    ]}
+                                >
+                                    <InputNumber className="w-full" min={0} max={50} precision={2} step={0.5} addonAfter="%" />
+                                </Form.Item>
                             </div>
                         </section>
 
@@ -974,6 +986,7 @@ function toPolicyFormValues(policy: CreditPolicy): PolicyFormValues {
         signupBonus: policy.signupBonusMicrocredits / 1_000_000,
         checkinBonus: policy.checkinBonusMicrocredits / 1_000_000,
         defaultMultiplier: policy.defaultMultiplierBasisPoints / 10_000,
+        videoReserveMarginPercent: (policy.videoReserveMarginBasisPoints ?? 0) / 100,
         modelMultipliers: Object.entries(policy.modelMultiplierBasisPoints).map(([model, value]) => ({ model, multiplier: value / 10_000 })),
     };
 }

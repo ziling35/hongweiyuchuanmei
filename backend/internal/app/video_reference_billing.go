@@ -67,7 +67,7 @@ func (u referenceVideoUsage) perSecondMillis() (int64, bool, error) {
 
 // estimateTaskBilling 在任务计费路径上补充参考视频实测能力；报价路径直接使用 estimateTaskBillingTokens。
 func (s *Service) estimateTaskBilling(userID string, input map[string]any, capability string) tokenBillingEstimate {
-	estimate := estimateTaskBillingTokens(input, capability)
+	estimate := s.tokensWithPolicyMargin(input, capability)
 	if capability == "video" && estimate.ReferenceVideos.Count > 0 {
 		references := input["referenceVideos"]
 		estimate.ReferenceVideos.Measure = func() (int64, error) {
@@ -129,7 +129,7 @@ func videoTokenEstimateWithoutReferences(estimate *VideoTokenEstimate) *VideoTok
 	result := *estimate
 	pixels := result.OutputWidth * result.OutputHeight
 	result.FormulaTokens = (result.OutputSeconds*1000*pixels*result.FramesPerSecond + 1_023_999) / 1_024_000
-	result.ReservedTokens = (result.FormulaTokens*(100+result.ReservationMarginPercent) + 99) / 100
+	result.ReservedTokens = (result.FormulaTokens*(10_000+result.ReservationMarginBPS) + 9_999) / 10_000
 	result.ReferenceSeconds = 0
 	result.ReferenceDurationEstimated = false
 	return &result

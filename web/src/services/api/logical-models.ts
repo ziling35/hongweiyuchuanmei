@@ -153,6 +153,7 @@ export type LogicalModelQuote = {
         referenceDurationEstimated: boolean;
         dimensionsEstimated: boolean;
         reservationMarginPercent: number;
+        reservationMarginBasisPoints?: number;
     };
     /** 仅视频请求挂参考视频时返回的报价构成。 */
     referenceVideo?: {

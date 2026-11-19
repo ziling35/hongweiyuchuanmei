@@ -108,7 +108,9 @@ export function modelQuoteDescription(quote: LogicalModelQuote) {
     if (breakdown) descriptions.push(breakdown);
     const estimate = quote.videoTokenEstimate;
     if (estimate) {
-        descriptions.push(`公式预估 ${estimate.formulaTokens.toLocaleString("zh-CN")} 视频 Token，平台额外预留 ${estimate.reservationMarginPercent}%（共 ${estimate.reservedTokens.toLocaleString("zh-CN")} Token）`);
+        const marginBps = estimate.reservationMarginBasisPoints ?? estimate.reservationMarginPercent * 100;
+        const marginLabel = (marginBps / 100).toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+        descriptions.push(`公式预估 ${estimate.formulaTokens.toLocaleString("zh-CN")} 视频 Token，平台额外预留 ${marginLabel}%（共 ${estimate.reservedTokens.toLocaleString("zh-CN")} Token）`);
         if (estimate.referenceDurationEstimated && !breakdown) descriptions.push("未知的参考视频时长按 15 秒估算");
         if (estimate.dimensionsEstimated) descriptions.push("实际画幅尚未确定，尺寸按当前参数估算");
     }

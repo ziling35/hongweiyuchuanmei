@@ -14,11 +14,19 @@ import (
 
 const creditPolicySettingKey = "credit_policy"
 
+// 视频 Token 预授权的默认与上限比例（万分比）。
+const (
+	defaultVideoReserveMarginBPS = int64(1000)
+	maxVideoReserveMarginBPS     = int64(5_000)
+)
+
 type CreditPolicy struct {
 	SignupBonusMicrocredits  int64            `json:"signupBonusMicrocredits"`
 	CheckinBonusMicrocredits int64            `json:"checkinBonusMicrocredits"`
 	DefaultMultiplierBPS     int64            `json:"defaultMultiplierBasisPoints"`
 	ModelMultiplierBPS       map[string]int64 `json:"modelMultiplierBasisPoints"`
+	// 视频 Token 预授权的预留比例（万分比，1000 = 10%）；0 表示不再额外预留。
+	VideoReserveMarginBPS int64 `json:"videoReserveMarginBasisPoints"`
 }
 
 type PublicCreditPolicy struct {
@@ -28,7 +36,7 @@ type PublicCreditPolicy struct {
 }
 
 func defaultCreditPolicy() CreditPolicy {
-	return CreditPolicy{SignupBonusMicrocredits: 0, CheckinBonusMicrocredits: 0, DefaultMultiplierBPS: 10_000, ModelMultiplierBPS: map[string]int64{}}
+	return CreditPolicy{SignupBonusMicrocredits: 0, CheckinBonusMicrocredits: 0, DefaultMultiplierBPS: 10_000, VideoReserveMarginBPS: defaultVideoReserveMarginBPS, ModelMultiplierBPS: map[string]int64{}}
 }
 
 func validateCreditPolicy(policy CreditPolicy) error {
@@ -40,6 +48,9 @@ func validateCreditPolicy(policy CreditPolicy) error {
 	}
 	if policy.DefaultMultiplierBPS <= 0 || policy.DefaultMultiplierBPS > 1_000_000 {
 		return BadAuthRequest("默认模型倍率必须在 0.0001-100 之间")
+	}
+	if policy.VideoReserveMarginBPS < 0 || policy.VideoReserveMarginBPS > maxVideoReserveMarginBPS {
+		return BadAuthRequest("视频预授权预留比例必须在 0%-50% 之间")
 	}
 	for modelKey, multiplier := range policy.ModelMultiplierBPS {
 		if strings.TrimSpace(modelKey) == "" || multiplier <= 0 || multiplier > 1_000_000 {
@@ -61,6 +72,14 @@ func (s *Service) creditPolicy() (CreditPolicy, error) {
 	var policy CreditPolicy
 	if json.Unmarshal([]byte(setting.ValueJSON), &policy) != nil {
 		return CreditPolicy{}, errors.New("积分策略配置格式无效")
+	}
+	// 老配置没有这个字段：按 BPS=0 直接解读等于"取消预留"，会静默改变现网扣费口径，
+	// 因此只在键缺失时回落到默认 10%，显式保存的 0 仍然生效。
+	var present map[string]json.RawMessage
+	if json.Unmarshal([]byte(setting.ValueJSON), &present) == nil {
+		if _, ok := present["videoReserveMarginBasisPoints"]; !ok {
+			policy.VideoReserveMarginBPS = defaultVideoReserveMarginBPS
+		}
 	}
 	if policy.ModelMultiplierBPS == nil {
 		policy.ModelMultiplierBPS = map[string]int64{}
@@ -166,4 +185,18 @@ func creditAmount(unitPrice int64, quantity int64, multiplierBPS int64) (int64, 
 		return 0, fmt.Errorf("积分计费金额无效：%d", amount)
 	}
 	return amount, nil
+}
+
+// tokensWithPolicyMargin 用后台积分策略里的视频预留比例估算 Token。
+// 报价与建单必须走同一条路径，否则用户看到的"额外预留"和实际冻结会不一致。
+func (s *Service) tokensWithPolicyMargin(input map[string]any, capability string) tokenBillingEstimate {
+	return estimateTaskBillingTokensWithMargin(input, capability, s.videoReserveMarginBPS())
+}
+
+func (s *Service) videoReserveMarginBPS() int64 {
+	policy, err := s.creditPolicy()
+	if err != nil {
+		return defaultVideoReserveMarginBPS
+	}
+	return policy.VideoReserveMarginBPS
 }

@@ -297,7 +297,7 @@ func (s *Service) switchTaskToNextRoute(task *model.Task, attempts []model.Route
 	} else if task.BillingOrderID != "" {
 		config, _ := nextInput["config"].(map[string]any)
 		capability := selected.ChannelModel.Capability
-		snapshotCreditCost(&costOrder, channelModelPriceTierForIntent(selected.ChannelModel, intent, selected.CapabilitySpec), requestedBillingQuantity(capability, config), estimateTaskBillingTokens(nextInput, capability))
+		snapshotCreditCost(&costOrder, channelModelPriceTierForIntent(selected.ChannelModel, intent, selected.CapabilitySpec), requestedBillingQuantity(capability, config), s.tokensWithPolicyMargin(nextInput, capability))
 	}
 	if err := s.repo.SwitchTaskLogicalRoute(task.ID, previousRouteID, selected.Route.ID, string(encoded), task.BillingOrderID, selected.ChannelModel.ChannelID, selected.ChannelModel.ID, replacement, costOrder.BillingCostSnapshot); err != nil {
 		if errors.Is(err, repository.ErrInsufficientCredits) {

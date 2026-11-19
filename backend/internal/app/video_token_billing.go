@@ -20,6 +20,8 @@ type VideoTokenEstimate struct {
 	ReferenceDurationEstimated bool    `json:"referenceDurationEstimated"`
 	DimensionsEstimated        bool    `json:"dimensionsEstimated"`
 	ReservationMarginPercent   int64   `json:"reservationMarginPercent"`
+	// 精确预留比例（万分比，1000 = 10%）；Percent 只是它的展示用整数近似。
+	ReservationMarginBPS int64 `json:"reservationMarginBasisPoints"`
 }
 
 type videoDimensions struct{ width, height int64 }
@@ -40,14 +42,19 @@ var arkVideo10Dimensions = map[string][]videoDimensions{
 }
 
 func estimateArkVideoTokens(input map[string]any) tokenBillingEstimate {
-	detail, err := estimateArkVideoTokenUsage(input)
+	return estimateArkVideoTokensWithMargin(input, defaultVideoReserveMarginBPS)
+}
+
+// estimateArkVideoTokensWithMargin 按后台积分策略里的预留比例估算预授权 Token。
+func estimateArkVideoTokensWithMargin(input map[string]any, marginBPS int64) tokenBillingEstimate {
+	detail, err := estimateArkVideoTokenUsage(input, marginBPS)
 	if err != nil {
 		return tokenBillingEstimate{Err: err}
 	}
 	return tokenBillingEstimate{OutputTokens: detail.ReservedTokens, Video: detail}
 }
 
-func estimateArkVideoTokenUsage(input map[string]any) (*VideoTokenEstimate, error) {
+func estimateArkVideoTokenUsage(input map[string]any, marginBPS int64) (*VideoTokenEstimate, error) {
 	config, _ := input["config"].(map[string]any)
 	seconds, err := strconv.ParseInt(strings.TrimSpace(fmt.Sprint(config["videoSeconds"])), 10, 64)
 	if err != nil || seconds <= 0 || seconds > (math.MaxInt64-15_000)/1000 {
@@ -62,7 +69,7 @@ func estimateArkVideoTokenUsage(input map[string]any) (*VideoTokenEstimate, erro
 	if err != nil {
 		return nil, err
 	}
-	const fps, margin = int64(24), int64(10)
+	const fps = int64(24)
 	if dimensions.width > math.MaxInt64/dimensions.height/fps {
 		return nil, BadAuthRequest("视频尺寸超出 Token 计算范围")
 	}
@@ -77,15 +84,20 @@ func estimateArkVideoTokenUsage(input map[string]any) (*VideoTokenEstimate, erro
 	// Official formula: (input seconds + output seconds) * W * H * FPS / 1024.
 	// Provider usage takes precedence; otherwise the formula snapshot is billable.
 	formulaTokens := (millis*pixels*fps + 1_023_999) / 1_024_000
-	if formulaTokens > (math.MaxInt64-99)/(100+margin) {
+	if marginBPS < 0 {
+		marginBPS = 0
+	}
+	if formulaTokens > (math.MaxInt64-9_999)/(10_000+marginBPS) {
 		return nil, BadAuthRequest("视频 Token 预授权用量超出支持范围")
 	}
 	return &VideoTokenEstimate{
-		FormulaTokens: formulaTokens, ReservedTokens: (formulaTokens*(100+margin) + 99) / 100,
+		FormulaTokens: formulaTokens, ReservedTokens: (formulaTokens*(10_000+marginBPS) + 9_999) / 10_000,
 		OutputWidth: dimensions.width, OutputHeight: dimensions.height, FramesPerSecond: fps,
 		OutputSeconds: seconds, ReferenceSeconds: float64(referenceMillis) / 1000,
 		ReferenceDurationEstimated: durationEstimated, DimensionsEstimated: dimensionsEstimated,
-		ReservationMarginPercent: margin,
+		// 百分比只用于展示，精确比例走 BPS，避免 12.5% 被截断成 12% 后重算失真。
+		ReservationMarginPercent: marginBPS / 100,
+		ReservationMarginBPS:     marginBPS,
 	}, nil
 }
 

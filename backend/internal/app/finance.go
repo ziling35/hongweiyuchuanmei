@@ -542,7 +542,7 @@ func (s *Service) newLogicalModelBillingOrder(userID string, task *model.Task, i
 	}
 	groupBPS := pricing.MultiplierBPS
 	quantity := int64(1)
-	tokenEstimate := estimateTaskBillingTokens(input, capability)
+	tokenEstimate := s.tokensWithPolicyMargin(input, capability)
 	amount := int64(0)
 	switch logicalModel.BillingMode {
 	case imagebilling.Mode:
@@ -953,8 +953,14 @@ func estimateTaskTokens(input map[string]any) tokenBillingEstimate {
 }
 
 func estimateTaskBillingTokens(input map[string]any, capability string) tokenBillingEstimate {
+	return estimateTaskBillingTokensWithMargin(input, capability, defaultVideoReserveMarginBPS)
+}
+
+// estimateTaskBillingTokensWithMargin 是报价与建单共用的估算入口：
+// 视频 Token 的预授权预留比例由调用方从积分策略里读出来传进来。
+func estimateTaskBillingTokensWithMargin(input map[string]any, capability string, marginBPS int64) tokenBillingEstimate {
 	if capability == "video" {
-		estimate := estimateArkVideoTokens(input)
+		estimate := estimateArkVideoTokensWithMargin(input, marginBPS)
 		estimate.ReferenceVideos = referenceVideoUsageFromInput(input)
 		return estimate
 	}

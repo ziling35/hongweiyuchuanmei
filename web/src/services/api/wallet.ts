@@ -66,6 +66,8 @@ export type CreditPolicy = {
     signupBonusMicrocredits: number;
     checkinBonusMicrocredits: number;
     defaultMultiplierBasisPoints: number;
+    /** 视频 Token 预授权的预留比例，万分比；1000 = 10%。 */
+    videoReserveMarginBasisPoints: number;
     modelMultiplierBasisPoints: Record<string, number>;
 };
 
