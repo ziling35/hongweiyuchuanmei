@@ -84,6 +84,7 @@ export type ChannelModel = {
     icon: string;
     capability: "text" | "image" | "video" | "audio" | "";
     protocol?: import("@/lib/model-protocols").ModelProtocol;
+    protocolRelease?: string;
     billingMode: "fixed_request" | "per_second" | "token" | "image_usage";
     unitPriceMicrocredits: number;
     inputTokenPriceMicrocredits: number;
@@ -189,6 +190,7 @@ export type ChannelModelMutation = {
     icon?: string;
     capability: ChannelModel["capability"];
     protocol?: ChannelModel["protocol"];
+    protocolRelease?: string;
     enabled?: boolean;
     priceCurrency?: ChannelModel["priceCurrency"];
     referenceVideoBilling?: boolean;
@@ -465,7 +467,7 @@ export function importAdminChannelModels(channelId: string, models: string[]) {
     return http.post<{ models: string[]; added: number }>(`/admin/channels/${encodeURIComponent(channelId)}/models/import`, { models });
 }
 
-export function testAdminChannelModel(channelId: string, input: Pick<ChannelModel, "modelKey" | "providerModelKey" | "capability" | "protocol"> & { capabilityConfig?: ChannelModel["capabilityConfig"] }) {
+export function testAdminChannelModel(channelId: string, input: Pick<ChannelModel, "modelKey" | "providerModelKey" | "capability" | "protocol" | "protocolRelease"> & { capabilityConfig?: ChannelModel["capabilityConfig"] }) {
     return http.post<{ durationMs: number }>(`/admin/channels/${encodeURIComponent(channelId)}/models/test`, input, { timeout: 10 * 60 * 1000 });
 }
 
