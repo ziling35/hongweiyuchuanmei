@@ -1,0 +1,123 @@
+/* =========================================================================
+   灵感大厅：视频和图片用两套卡片形态
+   图片更像「作品卡」：4:3 画幅 + 标题 + 两行描述 + 标签，信息密度优先；
+   视频更像「片单卡」：16:9 宽画幅 + 封面中央播放键，收起描述，标签贴底。
+   两者靠卡片上的 data-mode（上游 inspirations/index.tsx 一处属性）切换，
+   网格、筛选、搜索、分页等结构沿用上游。
+   ========================================================================= */
+
+/* ---------- 视频卡 ---------- */
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="video"] .inspiration-card-cover {
+    aspect-ratio: 16 / 9;
+}
+
+/* 播放键：42px 暗圆底 + 白色三角，压在封面正中，纯装饰不挡点击。 */
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="video"] .inspiration-card-cover::before {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 42px;
+    height: 42px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+    content: "";
+    pointer-events: none;
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="video"] .inspiration-card-cover::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    transform: translate(-38%, -50%);
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+    border-left: 11px solid #ffffff;
+    content: "";
+    pointer-events: none;
+}
+
+/* 视频没有长描述：标题在上、标签贴底，和同排图片卡的下边缘对齐。 */
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="video"] .inspiration-card-desc {
+    display: none;
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="video"] .inspiration-card-body {
+    gap: 2px;
+    padding-top: var(--space-3);
+}
+
+/* ---------- 两类卡共用的细节 ---------- */
+
+/* 封面圆角跟卡内边距对齐，视频卡换成 16:9 后四角也不会顶到卡片边缘。 */
+:root[data-skin="hongweiyu"] .inspiration-card .inspiration-card-cover {
+    border-radius: 12px;
+}
+
+/* 标签一律贴底：图片卡描述行数不一，贴底后同排卡片的标签行能对齐。 */
+:root[data-skin="hongweiyu"] .inspiration-card .inspiration-card-tags {
+    margin-top: auto;
+}
+
+/* 卡片表面显式走皮肤变量，不依赖上游 --library-surface——那是按 AntD 主题注入的，
+   和 html 上的 dark class 不一定同步，浅色主题下会残留深色卡面。 */
+:root[data-skin="hongweiyu"] .inspiration-card {
+    background: var(--hwy-surface);
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card:hover,
+:root[data-skin="hongweiyu"] .inspiration-card:focus-within {
+    background: var(--hwy-surface-raised);
+}
+
+/* 标签用低对比中性底，不跟封面抢颜色。 */
+:root[data-skin="hongweiyu"] .inspiration-card .inspiration-chip {
+    background: color-mix(in srgb, var(--hwy-ink) 8%, transparent);
+    color: color-mix(in srgb, var(--hwy-ink) 66%, transparent);
+}
+
+/* 「新」标签用皮肤的红底白字，比默认灰底更容易扫到。 */
+:root[data-skin="hongweiyu"] .inspiration-card-new {
+    background: var(--hwy-red);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* 来源标签压在画面上，用半透明黑底 + 白字，深浅主题都读得清。 */
+:root[data-skin="hongweiyu"] .inspiration-card-source {
+    background: rgba(0, 0, 0, 0.5);
+    color: rgba(255, 255, 255, 0.86);
+}
+
+/* 瀑布流：多列容器替代等宽网格，卡片按内容高度自然错落。
+   图片卡不再锁 4:3，让图片用自己的宽高比撑开卡片；min-height 只是懒加载时的占位，
+   否则图片解码前卡片高度是 0，整列会来回跳。视频卡仍固定 16:9，两类卡在同一列里错落。 */
+:root[data-skin="hongweiyu"] .inspiration-gallery {
+    display: block;
+    column-width: 232px;
+    column-gap: 16px;
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card {
+    break-inside: avoid;
+    margin-bottom: 16px;
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="image"] .inspiration-card-cover {
+    aspect-ratio: auto;
+    min-height: 140px;
+}
+
+:root[data-skin="hongweiyu"] .inspiration-card[data-mode="image"] .inspiration-card-cover img {
+    height: auto;
+    max-height: 460px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-skin="hongweiyu"] .inspiration-card {
+        transition: none;
+    }
+}

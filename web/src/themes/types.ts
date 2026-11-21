@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import type { CANVAS_APPEARANCE_PRESETS } from "@/lib/canvas/canvas-appearance";
 import type { SkinDefinition } from "@/lib/skin-themes";
@@ -19,6 +19,16 @@ export type ThemeSignalArtProps = { path: string; dot: [number, number]; error: 
 
 export type ThemeCanvasPatch = { [key: string]: string | ThemeCanvasPatch };
 
+/**
+ * 首页 hero 插槽（hw 红尾鱼）：主题包负责大标题、副标题与顶部入口分段；
+ * 历史入口由上游注入，主题包只决定它放在哪。
+ */
+export type ThemeHomeHeroProps = {
+    historySlot?: ReactNode;
+    /** 「全部画布」入口地址（团队空间带前缀），由上游传入；顶部「画布」改成页面内视图切换后，它给画布板块的「全部画布」用。 */
+    canvasTo?: string;
+};
+
 type CanvasPresetValues = (typeof CANVAS_APPEARANCE_PRESETS)[number]["values"];
 
 export type ThemePack = {
@@ -33,6 +43,8 @@ export type ThemePack = {
     signalArt?: ComponentType<ThemeSignalArtProps>;
     /** 顶栏积分图标；不提供时用上游礼盒。 */
     creditMark?: ComponentType<{ className?: string }>;
+    /** 首页 hero（hw 红尾鱼）；不提供时用上游「标题 + 历史入口」那一行。 */
+    homeHero?: ComponentType<ThemeHomeHeroProps>;
     notFound?: {
         /** 页面底部的背景装饰。 */
         backdrop?: ComponentType;

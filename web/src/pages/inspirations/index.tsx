@@ -578,7 +578,7 @@ function InspirationCard({
     const [menuOpen, setMenuOpen] = useState(false);
     const favoriteLabel = favorite ? "取消收藏" : "收藏";
     return (
-        <article className="inspiration-card">
+        <article className="inspiration-card" data-mode={item.mode}>
             <button type="button" className="inspiration-card-open" aria-label={`查看灵感：${item.title}`} aria-haspopup="dialog" onClick={onOpen}>
                 <span className="inspiration-card-cover">
                     <InspirationCover key={item.image} image={item.image} />

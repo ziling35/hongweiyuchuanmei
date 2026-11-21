@@ -1,0 +1,199 @@
+/* 作品广场的卡片与「查看制作过程」弹窗。
+   卡片：封面为主，视频悬停即播；底部标题 + 分类，右下角一个「查看制作过程」按钮。
+   弹窗：左侧概览、右侧画布快照缩略墙，主操作是「复制项目」。 */
+
+/* ---------- 卡片 ---------- */
+
+.hwy-work-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 6px 10px;
+    border-radius: 14px;
+    background: var(--hwy-surface);
+    transition: background 160ms ease;
+}
+
+.hwy-work-card:hover {
+    background: var(--hwy-surface-raised);
+}
+
+.hwy-work-cover {
+    position: relative;
+    display: block;
+    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    border: 1px solid var(--hwy-line);
+    border-radius: 12px;
+    background: var(--hwy-surface-raised);
+    cursor: pointer;
+}
+
+.hwy-work-cover img,
+.hwy-work-cover video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 视频没有视频文件时只显示封面，用播放标记说明它是视频作品。 */
+.hwy-work-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+    color: #ffffff;
+}
+
+.hwy-work-play svg {
+    width: 17px;
+    height: 17px;
+}
+
+.hwy-work-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 4px;
+}
+
+.hwy-work-copy strong {
+    overflow: hidden;
+    color: var(--hwy-ink);
+    font-size: var(--fs-body-sm, 14px);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hwy-work-copy small {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--hwy-ink) 52%, transparent);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 「查看制作过程」平时半透明，悬停卡片时提亮，避免每张卡都有个抢眼的按钮。 */
+.hwy-work-process {
+    align-self: flex-start;
+    margin: 0 4px;
+    padding: 3px 10px;
+    border: 1px solid var(--hwy-line);
+    border-radius: 999px;
+    background: transparent;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    opacity: 0.72;
+    transition:
+        opacity 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease;
+}
+
+.hwy-work-card:hover .hwy-work-process {
+    opacity: 1;
+}
+
+.hwy-work-process:hover {
+    border-color: var(--hwy-blue);
+    color: var(--hwy-ink);
+}
+
+.hwy-work-process:focus-visible,
+.hwy-work-cover:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+/* ---------- 制作过程弹窗 ---------- */
+
+.hwy-process {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+}
+
+.hwy-process-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.hwy-process-head h3 {
+    margin: 0;
+    color: var(--hwy-ink);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.hwy-process-head p {
+    margin: 4px 0 0;
+    color: color-mix(in srgb, var(--hwy-ink) 56%, transparent);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.hwy-process-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    color: color-mix(in srgb, var(--hwy-ink) 52%, transparent);
+    font-size: 12px;
+}
+
+/* 快照缩略墙：只挑图片节点，按 4 列铺开，超出部分截断。 */
+.hwy-process-canvas {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.hwy-process-tile {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--hwy-line);
+    border-radius: 10px;
+    background: var(--hwy-surface-raised);
+}
+
+.hwy-process-tile img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.hwy-process-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 16px;
+    border: 1px dashed var(--hwy-line);
+    border-radius: 12px;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+}
+
+.hwy-process-state svg {
+    width: 18px;
+    height: 18px;
+}

@@ -1,0 +1,69 @@
+/* 「灵感大厅 / 作品广场」切换就长在灵感大厅的大标题上：
+   原 h2 只留无障碍用途（视觉上挪走），真正显示的是并排的两枚大标字按钮，
+   点哪枚就切到哪块内容。选中项满不透明、带橙→蓝渐变下划线，未选中项压到 34%。
+   颜色一律继承上游文字色（不要自己算 color-mix，切主题时可能不重算）。 */
+
+:root[data-skin="hongweiyu"] .inspiration-hall-header > div > h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.hwy-feed-titles {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 20px;
+}
+
+.hwy-feed-title {
+    position: relative;
+    padding: 0 2px 6px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-title);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    opacity: 0.34;
+    transition: opacity 160ms ease;
+}
+
+.hwy-feed-title:hover {
+    opacity: 0.66;
+}
+
+.hwy-feed-title.is-active {
+    opacity: 1;
+}
+
+/* 选中项一道橙→蓝渐变下划线，和首页胶囊是同一套色。 */
+.hwy-feed-title.is-active::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ff953e 0%, #3aaeff 100%);
+    content: "";
+}
+
+.hwy-feed-title:focus-visible {
+    border-radius: 6px;
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 3px;
+}
+
+/* 大厅的说明文字按需求去掉：标题下面就只剩大字切换，不再有那行小字。 */
+:root[data-skin="hongweiyu"] .inspiration-hall-header > div > p {
+    display: none;
+}

@@ -1,0 +1,508 @@
+/* =========================================================================
+   红尾鱼 · 首页 主题层
+   只在后台启用 hongweiyu 皮肤（html[data-skin="hongweiyu"]）时生效。
+
+   浅色与深色是两套真实配色，由 `html[data-skin] ` 与 `html[data-skin].dark`
+   两个作用域切换，所有规则只引用变量，不再写死颜色：
+   - 浅色：浅灰页面 + 白色卡片 + 深字 + 蓝色主操作
+   - 深色：纯黑页面 + #101010 卡片 + 近白字 + 青绿微光（参考稿实测）
+
+   颜色令牌本身由皮肤数据负责（后台「站点及外观 → 皮肤主题」可改）；
+   这里只补皮肤数据管不到的部分：--user-* 映射、页面光晕、首页 hero 与卡片表面。
+   ========================================================================= */
+
+:root[data-skin="hongweiyu"] {
+    /* 浅色：页面比卡片暗一档，卡片才是纯白。 */
+    --hwy-page: #f4f6f7;
+    --hwy-surface: #ffffff;
+    --hwy-surface-raised: #f7f9fa;
+    --hwy-line: #e2e6e9;
+    --hwy-line-strong: #d6dbdf;
+    --hwy-ink: #0f1214;
+    --hwy-glow: rgba(39, 132, 254, 0.16);
+    /* 主区细网格底纹：间距 32px，颜色要压到几乎看不见。 */
+    --hwy-grid: rgba(15, 18, 20, 0.13);
+    /* canvas 背景用：指针所在格的高亮色、四周渐隐的边缘色（alpha 不能太高，
+       0.9 会把边缘的网格线整片擦掉），以及侧栏自己的一档底色。 */
+    --hwy-grid-hover: rgba(37, 99, 235, 0.09);
+    --hwy-grid-edge: rgba(244, 246, 247, 0.45);
+    --hwy-sidebar: #eef1f2;
+    /* 品牌与功能色两套皮肤一致，浅色下压深一档保证白底对比度。 */
+    --hwy-blue: #2784fe;
+    --hwy-red: #e00000;
+    --hwy-green: #2fa81b;
+    --hwy-orange: #e08300;
+}
+
+:root[data-skin="hongweiyu"].dark {
+    /* 深色：参考稿实测值，页面与描边都比上游默认更深。 */
+    --hwy-page: #000000;
+    /* 深色四级：页面 #000 → 卡片 #171717 → 卡片内控件 #212121 → 选中 #2e2e2e。
+       参考稿的卡片是 #101010，与纯黑只差 16 级，实际屏幕上几乎糊成一片，所以整体抬高。 */
+    --hwy-surface: #171717;
+    --hwy-surface-raised: #1f1f1f;
+    --hwy-line: #2c2c2c;
+    --hwy-line-strong: #3d3d3d;
+    --hwy-ink: #f1f5f6;
+    --hwy-glow: rgba(0, 92, 112, 0.34);
+    --hwy-grid: rgba(255, 255, 255, 0.14);
+    --hwy-grid-hover: rgba(0, 196, 226, 0.12);
+    --hwy-grid-edge: rgba(0, 0, 0, 0.5);
+    --hwy-sidebar: #141414;
+    --hwy-blue: #2784fe;
+    --hwy-red: #fe0000;
+    --hwy-green: #55d83d;
+    --hwy-orange: #ff9e17;
+}
+
+:root[data-skin="hongweiyu"] {
+    background-color: var(--hwy-page);
+}
+
+:root[data-skin="hongweiyu"] body {
+    background-color: var(--hwy-page);
+    color: var(--hwy-ink);
+}
+
+/* 上游把 --user-* 写死在浅色/深色两套里；这里改成跟随上面的变量。 */
+:root[data-skin="hongweiyu"] .app-user-workspace,
+:root[data-skin="hongweiyu"] .app-user-overlays {
+    --user-page-bg: var(--hwy-page);
+    --user-surface: var(--hwy-surface);
+    --user-surface-raised: var(--hwy-surface-raised);
+    --user-surface-muted: color-mix(in srgb, var(--hwy-ink) 6%, var(--hwy-page));
+    --user-surface-hover: color-mix(in srgb, var(--hwy-ink) 9%, var(--hwy-page));
+    --user-control-pressed: color-mix(in srgb, var(--hwy-ink) 14%, var(--hwy-page));
+    --user-border: var(--hwy-line);
+    --user-border-strong: var(--hwy-line-strong);
+    --user-ink: var(--hwy-ink);
+    --user-ink-muted: color-mix(in srgb, var(--hwy-ink) 64%, transparent);
+    --user-ink-soft: color-mix(in srgb, var(--hwy-ink) 44%, transparent);
+    --user-card-hover: var(--hwy-surface-raised);
+    --user-shadow-card: none;
+    --user-shadow-hover: none;
+}
+
+/* 创作首页：页面底色 + 一层很淡的品牌光（浅色偏蓝，深色偏青绿）。 */
+/* 背景动效统一交给最外层的 .app-user-workspace（见文件末尾那组规则），
+   内容区、stage、侧栏都保持透明，让整页共用一张会动的背景。 */
+:root[data-skin="hongweiyu"] .app-user-workspace .creation-home {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/* 滚动区只叠光晕，网格由外层承载：滚动内容时网格不跟着跑。 */
+/* 渐变与网格都由外层承载：滚动内容时背景不跟着跑。 */
+:root[data-skin="hongweiyu"] .creation-home-scroll {
+    background-color: transparent;
+    background-image: none;
+}
+
+/* 只在创作首页收掉顶栏：面包屑对首页没有信息价值，让主区顶到窗口顶部。
+   必须用 :has(.creation-home) 限定作用域——否则画布、资产等页面的顶栏也会塌掉，
+   它们的新建/导入按钮就会堆到右上角和浮动入口重叠。
+   右上角操作组（积分/充值/通知/头像）保留为浮动入口，否则这些功能没有落点。 */
+:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar {
+    height: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
+}
+
+/* 窄屏的移动端菜单按钮原本在顶栏左侧，顶栏归零后会溢出到窗口外，改成固定在左上角。 */
+@media (max-width: 1024px) {
+    :root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-mobile-menu {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 60;
+    }
+}
+
+/* 宽屏下这个按钮没有意义（侧栏常驻），顶栏收掉后一并隐藏。 */
+@media (min-width: 1025px) {
+    :root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-mobile-menu {
+        display: none !important;
+    }
+}
+
+:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar-breadcrumb {
+    display: none !important;
+}
+
+:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar-actions {
+    position: fixed;
+    top: 10px;
+    right: 18px;
+    z-index: 60;
+}
+
+/* 顶栏不再占位，历史入口要给右上角的浮动组让位。 */
+:root[data-skin="hongweiyu"] .creation-launchpad .hwy-hero-history {
+    top: 44px;
+}
+
+:root[data-skin="hongweiyu"] .app-user-workspace .app-workspace-stage.app-workspace-stage {
+    background: transparent !important;
+}
+:root[data-skin="hongweiyu"] .creation-launchpad .creation-start-heading {
+    position: relative;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    text-align: center;
+}
+
+:root[data-skin="hongweiyu"] .creation-launchpad .creation-start-heading h1 {
+    color: var(--hwy-ink);
+    font-size: clamp(26px, 2.4vw, 34px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.28;
+}
+
+:root[data-skin="hongweiyu"] .creation-launchpad .creation-start-heading p {
+    color: color-mix(in srgb, var(--hwy-ink) 58%, transparent);
+    font-size: var(--fs-caption);
+}
+
+:root[data-skin="hongweiyu"] .creation-launchpad .creation-history-entry {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+@media (max-width: 900px) {
+    :root[data-skin="hongweiyu"] .creation-launchpad .creation-history-entry {
+        position: static;
+        margin-top: var(--space-2);
+    }
+}
+
+/* 推荐卡：卡片面 + 细描边。上游对 .suggest-card 下过 transparent !important，
+   这里必须同样带 !important 才能落色；anan 之外的卡片（灵感大厅）由皮肤令牌负责。 */
+:root[data-skin="hongweiyu"] .app-user-workspace .creation-empty-suggest .suggest-card,
+:root[data-skin="hongweiyu"] .app-user-workspace .creation-empty-suggest .creation-hero-prompt {
+    border: 1px solid var(--hwy-line) !important;
+    border-radius: var(--user-radius-card, 14px) !important;
+    background: var(--hwy-surface) !important;
+    box-shadow: none !important;
+}
+
+:root[data-skin="hongweiyu"] .app-user-workspace .creation-empty-suggest .suggest-card:hover,
+:root[data-skin="hongweiyu"] .app-user-workspace .creation-empty-suggest .creation-hero-prompt:hover {
+    border-color: var(--hwy-line-strong) !important;
+    background: var(--hwy-surface-raised) !important;
+    box-shadow: none !important;
+    transform: translateY(-2px);
+}
+
+:root[data-skin="hongweiyu"] .creation-empty-suggest .suggest-icon {
+    border: 1px solid var(--hwy-line);
+    background: color-mix(in srgb, var(--hwy-ink) 5%, var(--hwy-page));
+    color: color-mix(in srgb, var(--hwy-ink) 72%, transparent);
+}
+
+/* 栏目头：最近画布 / 灵感大厅。标题用正文色，计数与「查看全部」弱化。 */
+:root[data-skin="hongweiyu"] .creation-section-heading h2,
+:root[data-skin="hongweiyu"] .inspiration-hall-header h2 {
+    color: var(--hwy-ink);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+:root[data-skin="hongweiyu"] .creation-section-link,
+:root[data-skin="hongweiyu"] .inspiration-hall-count {
+    color: color-mix(in srgb, var(--hwy-ink) 55%, transparent);
+}
+
+/* =========================================================================
+   antd 令牌：只在深色下需要补。浅色时 antd 自身的浅色令牌与皮肤白面一致；
+   深色时 antd 的默认深色是 #18181b 系，比参考稿的纯黑亮一档，这里拉平。
+   作用域锚点取两处稳定值：`.ant-app` 上的 `yingce-<皮肤 id>` 与 `css-var-*`。
+   ========================================================================= */
+:root[data-skin="hongweiyu"].dark .ant-app,
+:root[data-skin="hongweiyu"].dark [class*="css-var-"] {
+    --ant-color-bg-layout: var(--hwy-page);
+    --ant-color-bg-container: var(--hwy-surface);
+    --ant-color-bg-elevated: var(--hwy-surface-raised);
+    --ant-color-bg-container-disabled: rgba(255, 255, 255, 0.04);
+    --ant-color-bg-text-hover: rgba(255, 255, 255, 0.06);
+    --ant-color-bg-text-active: rgba(255, 255, 255, 0.09);
+    --ant-color-border: var(--hwy-line-strong);
+    --ant-color-border-secondary: var(--hwy-line);
+    --ant-color-split: var(--hwy-line);
+    --ant-color-fill: rgba(255, 255, 255, 0.1);
+    --ant-color-fill-secondary: rgba(255, 255, 255, 0.06);
+    --ant-color-fill-tertiary: rgba(255, 255, 255, 0.04);
+    --ant-color-fill-quaternary: rgba(255, 255, 255, 0.02);
+    --ant-color-text: var(--hwy-ink);
+    --ant-color-text-secondary: color-mix(in srgb, var(--hwy-ink) 66%, transparent);
+    --ant-color-text-tertiary: color-mix(in srgb, var(--hwy-ink) 45%, transparent);
+    --ant-color-text-quaternary: color-mix(in srgb, var(--hwy-ink) 28%, transparent);
+    --ant-button-default-bg: var(--hwy-surface);
+    --ant-button-default-color: var(--hwy-ink);
+    --ant-button-default-border-color: var(--hwy-line-strong);
+    --ant-button-default-hover-bg: var(--hwy-surface-raised);
+    --ant-button-default-hover-border-color: #3c3c3c;
+    --ant-button-default-active-bg: #1c1c1c;
+    --ant-button-default-active-border-color: #3c3c3c;
+}
+
+/* hero 与输入区之间留出呼吸：上游两者是零间距，分段胶囊会直接贴住输入卡。 */
+:root[data-skin="hongweiyu"] .creation-launchpad .creation-composer-stage {
+    margin-top: var(--space-5);
+}
+
+/* 顶部“历史已同步”状态行按需求去掉，把垂直空间让给内容。 */
+:root[data-skin="hongweiyu"] .creation-home > p[role="status"] {
+    display: none;
+}
+
+/* 内容整体再往下让一点：顶栏收掉后标题太贴窗口顶部。 */
+:root[data-skin="hongweiyu"] .creation-home-scroll {
+    padding-top: 48px;
+}
+
+/* =========================================================================
+   深色输入卡：模式条 / 选中滑块 / 输入区 / 工具控件
+   这套「文件夹」形状是靠 wing 撑起来的：wing 的填充色就是输入区颜色，选中滑块
+   和两侧 wing 拼成一道从卡片顶部升起的拱。所以层次必须是
+   页面 < 模式条 < 输入区 ≈ 滑块——模式条要比输入区更暗，拱才显形；
+   把模式条调到比输入区更亮的话，wing 就成了两块深色缺口（上一版就是这个毛病）。
+   ========================================================================= */
+:root[data-skin="hongweiyu"].dark .creation-mode-folder {
+    background: #0b0b0b;
+}
+
+:root[data-skin="hongweiyu"].dark .creation-mode-folder-tab {
+    background: var(--hwy-surface);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+:root[data-skin="hongweiyu"].dark .creation-mode-folder-button {
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+}
+
+:root[data-skin="hongweiyu"].dark .creation-mode-folder-button[aria-pressed="true"] {
+    color: var(--hwy-ink);
+    font-weight: 500;
+}
+
+:root[data-skin="hongweiyu"].dark .creation-mode-folder-button:hover {
+    color: var(--hwy-ink);
+}
+
+/* 卡片描边：输入区 #171717 直接压在纯黑页面上会和背景糊在一起。 */
+:root[data-skin="hongweiyu"].dark .creation-mode-card-inner {
+    box-shadow: inset 0 0 0 1px #232323;
+}
+
+/* 工具条按钮在 #171717 上加 6% 白几乎看不出边界，补一层描边。 */
+:root[data-skin="hongweiyu"].dark .creation-chat-composer .creation-chat-control,
+:root[data-skin="hongweiyu"].dark .creation-chat-composer .creation-model-picker.canvas-composer-model-picker {
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* 禁用的「开始创作」：上游整块 opacity 0.42 会把蓝底和白字一起压灰，
+   改成淡蓝底 + 仍可读的白字——禁用状态清楚，但不显脏。 */
+:root[data-skin="hongweiyu"].dark .creation-chat-dock .ant-btn:disabled {
+    opacity: 1;
+}
+
+:root[data-skin="hongweiyu"].dark .creation-chat-dock .ant-btn:disabled .creation-submit-action {
+    background: rgba(39, 132, 254, 0.3);
+    color: rgba(241, 245, 246, 0.72);
+    /* 按钮自身的 opacity 也会压暗底色和文字，一并还原。 */
+    opacity: 1;
+}
+
+/* =========================================================================
+   浅色下的两块灰底：「创作 / 画布」分段 与 输入卡的切换条。
+   上游给的是 #E2E4E5 / #E6E8E9，比页面 #F4F6F7 暗一截，在白色卡片上是一条
+   又宽又闷的灰带。这里压到几乎与卡片同色，靠描边和滑块的浅阴影保留层次。
+   ========================================================================= */
+:root[data-skin="hongweiyu"]:not(.dark) .hwy-hero-tabs {
+    background: #f2f4f5;
+    border-color: #e4e7e9;
+}
+
+:root[data-skin="hongweiyu"]:not(.dark) .creation-mode-folder {
+    background: #f2f4f5;
+    box-shadow: inset 0 -1px 0 #e4e7e9;
+}
+
+:root[data-skin="hongweiyu"]:not(.dark) .creation-mode-folder-tab {
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 18, 20, 0.07);
+}
+
+/* 深色下分段容器与卡片同色，选中块是白色，靠描边区分即可。 */
+:root[data-skin="hongweiyu"].dark .hwy-hero-tabs {
+    background: var(--hwy-surface);
+    border-color: var(--hwy-line-strong);
+}
+
+/* 「历史对话」不再孤零零挂在右上角，改为与分段胶囊同一行、靠右对齐。 */
+:root[data-skin="hongweiyu"] .creation-launchpad .hwy-hero-history {
+    top: auto;
+    bottom: 4px;
+    right: 0;
+}
+
+/* =========================================================================
+   深色卡片的“质地”：纯黑底上只靠 1px 描边分不清层级，
+   这里给一级卡片加一道顶边内高光，图标瓦片再抬一档。
+   ========================================================================= */
+:root[data-skin="hongweiyu"].dark .app-user-workspace .creation-empty-suggest .suggest-card,
+:root[data-skin="hongweiyu"].dark .app-user-workspace .creation-empty-suggest .creation-hero-prompt {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+:root[data-skin="hongweiyu"].dark .creation-empty-suggest .suggest-icon {
+    border-color: #333333;
+    background: #232323;
+    color: color-mix(in srgb, var(--hwy-ink) 86%, transparent);
+}
+
+/* 推荐卡图标瓦片被上游一条 !important 的 --user-surface-muted 压住，这里必须同级覆盖。 */
+:root[data-skin="hongweiyu"].dark .app-user-workspace .creation-empty-suggest .suggest-icon {
+    border: 1px solid #333333 !important;
+    background: #232323 !important;
+    color: color-mix(in srgb, var(--hwy-ink) 86%, transparent) !important;
+}
+
+/* 最近画布卡片走的是 --library-surface（不是 --user-surface），单独抬到二级表面。 */
+:root[data-skin="hongweiyu"].dark .creation-canvas-tile {
+    border: 1px solid var(--hwy-line);
+    background: var(--hwy-surface-raised);
+}
+
+:root[data-skin="hongweiyu"].dark .creation-canvas-tile:hover {
+    border-color: var(--hwy-line-strong);
+    background: #242424;
+}
+
+/* =========================================================================
+   首页背景动效：极光漂移 + 网格缓慢流动 + 指针聚光。
+   只动 transform / opacity / background-position，并提供 reduced-motion 关闭；
+   极光不做 blur 滤镜（radial-gradient 自带柔边），避免大面积滤镜拖慢首屏。
+   ========================================================================= */
+:root[data-skin="hongweiyu"] {
+    --hwy-aurora-1: rgba(39, 132, 254, 0.72);
+    --hwy-aurora-2: rgba(120, 172, 255, 0.6);
+    --hwy-aurora-3: rgba(168, 120, 255, 0.55);
+    /* 指针光单独一档：比极光淡，半径也只到 240px，避免鼠标一动就糊掉半个屏幕。 */
+    --hwy-spotlight: rgba(39, 132, 254, 0.3);
+}
+
+:root[data-skin="hongweiyu"].dark {
+    /* 深色走「深空青绿 + 冷蓝 + 紫」：亮度压得很低，靠面积和漂移表现神秘感。 */
+    --hwy-aurora-1: rgba(0, 150, 180, 0.8);
+    --hwy-aurora-2: rgba(48, 108, 255, 0.62);
+    --hwy-aurora-3: rgba(126, 70, 232, 0.6);
+    --hwy-spotlight: rgba(0, 190, 220, 0.32);
+}
+
+/* 底色交给 html，网格与指针高亮由 canvas（background.tsx）绘制：
+   这样网格能一直流动，鼠标只点亮所在那一格，不会整片染色。 */
+html[data-skin="hongweiyu"] {
+    background-color: var(--hwy-page);
+}
+
+/* canvas 铺满视口、压在内容之下；fixed 定位，滚动时网格不跟着跑。 */
+.hwy-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* 透明链：任何一层保留不透明底色，都会把 canvas 盖掉。 */
+html[data-skin="hongweiyu"] body,
+html[data-skin="hongweiyu"] #root,
+html[data-skin="hongweiyu"] .ant-app,
+html[data-skin="hongweiyu"] .app-workspace-shell.app-workspace-shell,
+html[data-skin="hongweiyu"] .app-user-workspace {
+    background-color: transparent !important;
+    background-image: none !important;
+}
+
+/* 推荐卡：四个入口各用一个色，瓦片里放白色图标。 */
+:root[data-skin="hongweiyu"] .creation-empty-suggest .suggest-icon {
+    border: 0 !important;
+    color: #ffffff !important;
+    background: linear-gradient(135deg, #4a90ff, #1e6bff) !important;
+    box-shadow: 0 4px 12px rgba(30, 107, 255, 0.22);
+}
+
+:root[data-skin="hongweiyu"] .creation-empty-suggest .suggest-card:nth-child(2) .suggest-icon {
+    background: linear-gradient(135deg, #34d3c0, #0ea5a0) !important;
+    box-shadow: 0 4px 12px rgba(14, 165, 160, 0.22);
+}
+
+:root[data-skin="hongweiyu"] .creation-empty-suggest .suggest-card:nth-child(3) .suggest-icon {
+    background: linear-gradient(135deg, #a78bfa, #7c4dff) !important;
+    box-shadow: 0 4px 12px rgba(124, 77, 255, 0.22);
+}
+
+:root[data-skin="hongweiyu"] .creation-empty-suggest .suggest-card:nth-child(4) .suggest-icon {
+    background: linear-gradient(135deg, #ffb03a, #f5920b) !important;
+    box-shadow: 0 4px 12px rgba(245, 146, 11, 0.22);
+}
+
+/* 侧栏：实底 + 一层从顶部向外淡出的柔光，和内容区的渐晕呼应。
+   background-color / background-image / border 分开写且都带 !important，
+   避免被上游的 background 简写或透明链重置成透明。 */
+:root[data-skin="hongweiyu"] .app-workspace-sidebar,
+:root[data-skin="hongweiyu"] .app-workspace-sidebar-scroll-area,
+:root[data-skin="hongweiyu"] .app-workspace-sidebar-footer {
+    background-color: var(--hwy-sidebar) !important;
+    background-image: radial-gradient(140% 55% at 50% -10%, color-mix(in srgb, var(--hwy-ink) 5%, transparent), transparent 72%) !important;
+    background-repeat: no-repeat !important;
+    background-size: 100% 100% !important;
+}
+
+:root[data-skin="hongweiyu"] .app-workspace-sidebar.app-workspace-sidebar {
+    border-right: 1px solid var(--hwy-line) !important;
+}
+
+/* 首页的显隐规则，分三类：
+   1. 「最近画布」区块本来就带新建画布卡，和 hero 里的画布板块重复，启用本皮肤时收掉；
+   2. 画布视图：创作区（输入框、建议入口、浮动快捷输入）与灵感大厅整块收起，只留画布板块；
+   3. 作品广场：只收灵感大厅自己的筛选条、结果区和「新建灵感」按钮，作品墙顶上来。
+      创作区保持原样——切内容不该牵动上面的输入区，否则会看到输入框忽隐忽现。
+   class 挂在 html 上，和 :root 同属一个元素，所以选择器不能写成后代。 */
+:root[data-skin="hongweiyu"] .creation-recent-canvases {
+    display: none;
+}
+
+/* 画布视图：创作区与灵感大厅整块收起。 */
+:root[data-skin="hongweiyu"].hwy-canvas-view .creation-composer-stage,
+:root[data-skin="hongweiyu"].hwy-canvas-view .creation-floating-prompt,
+:root[data-skin="hongweiyu"].hwy-canvas-view .inspiration-hall,
+:root[data-skin="hongweiyu"].hwy-canvas-view .creation-source-notice {
+    display: none;
+}
+
+/* 快捷创作入口上游写的是 .app-user-workspace .creation-empty-suggest { display: grid !important }，
+   普通优先级盖不住，这里只能跟着上 !important；只在画布视图收起。 */
+:root[data-skin="hongweiyu"].hwy-canvas-view .creation-empty-suggest {
+    display: none !important;
+}
+
+/* 作品广场：灵感大厅只留标题区（切换按钮挂在里面），其余让给作品墙。 */
+:root[data-skin="hongweiyu"].hwy-works-view .inspiration-hall-toolbar,
+:root[data-skin="hongweiyu"].hwy-works-view .inspiration-hall-filters,
+:root[data-skin="hongweiyu"].hwy-works-view .inspiration-hall-results,
+:root[data-skin="hongweiyu"].hwy-works-view .inspiration-hall-actions {
+    display: none;
+}

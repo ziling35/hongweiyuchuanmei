@@ -1,0 +1,273 @@
+/* 首页「画布」视图，照即梦画布页的版式：标题行 + 一整行「新建画布」横条 + 历史画布网格。
+   即梦那边新建卡是 666×137 的整行横条（不是小方格）、历史卡是缩略图铺满、标题浮在下方，
+   这里保留同一套比例，只在间距上放宽到 14px，浅色主题下也靠 1px 描边撑出卡片边界。 */
+
+.hwy-hub {
+    width: 100%;
+    margin-top: var(--space-6, 28px);
+    text-align: left;
+    animation: hwy-hub-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hwy-hub-in {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 14px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+.hwy-hub-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.hwy-hub-head h2 {
+    margin: 0;
+    color: var(--hwy-ink);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.hwy-hub-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: color-mix(in srgb, var(--hwy-ink) 56%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+    text-decoration: none;
+    transition: color 160ms ease;
+}
+
+.hwy-hub-more:hover {
+    color: var(--hwy-ink);
+}
+
+.hwy-hub-more svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 新建画布：整行横条，虚线框 + 上下淡淡的渐变底，图标和文字居中。
+   方框用反色（深色主题下白块深字、浅色主题下深块白字），和即梦的加号块一致。 */
+.hwy-hub-new {
+    display: flex;
+    width: 100%;
+    min-height: 126px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 0;
+    border: 1px dashed color-mix(in srgb, var(--hwy-blue) 55%, var(--hwy-line-strong));
+    border-radius: 16px;
+    background: linear-gradient(180deg, var(--hwy-surface) 0%, color-mix(in srgb, var(--hwy-ink) 6%, var(--hwy-surface)) 100%);
+    color: var(--hwy-ink);
+    cursor: pointer;
+    font: inherit;
+    transition:
+        border-color 160ms ease,
+        background 160ms ease;
+}
+
+.hwy-hub-new:hover:not(:disabled) {
+    border-color: var(--hwy-blue);
+    background: linear-gradient(180deg, var(--hwy-surface) 0%, color-mix(in srgb, var(--hwy-blue) 10%, var(--hwy-surface)) 100%);
+}
+
+.hwy-hub-new:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+.hwy-hub-new:disabled {
+    cursor: progress;
+    opacity: 0.7;
+}
+
+.hwy-hub-new-icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--hwy-ink);
+    color: var(--hwy-page);
+}
+
+.hwy-hub-new-icon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.hwy-hub-new-label {
+    font-size: var(--fs-body-sm, 14px);
+    font-weight: 600;
+}
+
+.hwy-hub-spin {
+    animation: hwy-hub-spin 900ms linear infinite;
+}
+
+@keyframes hwy-hub-spin {
+    to {
+        transform: rotate(1turn);
+    }
+}
+
+/* 历史画布网格：卡片本身不画外框（即梦也是这样），靠缩略图的描边和圆角分界。 */
+.hwy-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.hwy-hub-cell {
+    min-width: 0;
+}
+
+.hwy-hub-card {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 6px 10px;
+    border: 0;
+    border-radius: 14px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    transition: background 160ms ease;
+}
+
+.hwy-hub-card:hover {
+    background: color-mix(in srgb, var(--hwy-ink) 6%, transparent);
+}
+
+.hwy-hub-card:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+.hwy-hub-thumb {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 10;
+    border: 1px solid var(--hwy-line);
+    border-radius: 12px;
+    background: var(--hwy-surface-raised);
+}
+
+/* 卡片文案区固定两行高度：标题 + 元信息，卡片因此等高；缩略图那侧已经锁了比例。 */
+.hwy-hub-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    padding: 0 4px;
+}
+
+.hwy-hub-copy strong {
+    overflow: hidden;
+    color: var(--hwy-ink);
+    font-size: var(--fs-body-sm, 14px);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hwy-hub-copy small {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--hwy-ink) 52%, transparent);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hwy-hub-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 6px 10px;
+}
+
+.hwy-hub-skeleton > span:first-child {
+    aspect-ratio: 16 / 10;
+    border: 1px solid var(--hwy-line);
+    border-radius: 12px;
+    background: var(--hwy-surface-raised);
+}
+
+.hwy-hub-skeleton > span:last-child {
+    width: 62%;
+    height: 13px;
+    margin: 0 4px;
+    border-radius: 999px;
+    background: var(--hwy-surface-raised);
+}
+
+/* 空态 / 失败态占满整行，不挤在一格宽度里。 */
+.hwy-hub-state {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    border: 1px dashed var(--hwy-line);
+    border-radius: 14px;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+}
+
+.hwy-hub-state svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.hwy-hub-state button {
+    padding: 4px 12px;
+    border: 1px solid var(--hwy-line-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--hwy-ink);
+    cursor: pointer;
+    font: inherit;
+}
+
+.hwy-hub-state button:hover {
+    border-color: var(--hwy-ink);
+}
+
+.hwy-hub-state button:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .hwy-hub-new {
+        min-height: 96px;
+    }
+    .hwy-hub-grid {
+        grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+        gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hwy-hub,
+    .hwy-hub-spin {
+        animation: none;
+    }
+}

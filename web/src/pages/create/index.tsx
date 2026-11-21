@@ -150,7 +150,9 @@ export default function CreatePage() {
     const [openingCanvas, setOpeningCanvas] = useState(false);
     const openingCanvasRef = useRef(false);
     const brandName = useAppearanceStore((state) => state.appearance.brandName);
-    const themeHomeHeading = useThemePack()?.copy?.homeHeading;
+    const themePack = useThemePack(); // hw: 红尾鱼主题——首页大标题与 hero 插槽
+    const themeHomeHeading = themePack?.copy?.homeHeading;
+    const ThemeHomeHero = themePack?.homeHero;
     const config = useEffectiveConfig();
     const composerPreferencesHydrated = useCreationPreferencesStore((state) => state.hydrated);
     const rememberMode = useCreationPreferencesStore((state) => state.rememberMode);
@@ -1716,16 +1718,28 @@ export default function CreatePage() {
                         </AnimatePresence>
                         <main ref={threadScrollRef} onScroll={handleThreadScroll} className="creation-home-scroll creation-scrollbar">
                             <section ref={launchpadRef} className="creation-launchpad" aria-label={t("create.page.launchpadLabel")}>
-                                <header className="creation-start-heading">
-                                    <div>
-                                        <h1>{themeHomeHeading || t("create.page.heading", { brand: brandName })}</h1>
-                                        <p>{t("create.page.subheading")}</p>
-                                    </div>
-                                    <button type="button" className="creation-history-entry" aria-label={t("create.page.viewHistory")} aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}>
-                                        <History aria-hidden="true" />
-                                        <span>{t("create.history.title")}</span>
-                                    </button>
-                                </header>
+                                {ThemeHomeHero ? (
+                                    <ThemeHomeHero
+                                        historySlot={
+                                            <button type="button" className="creation-history-entry" aria-label={t("create.page.viewHistory")} aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}>
+                                                <History aria-hidden="true" />
+                                                <span>{t("create.history.title")}</span>
+                                            </button>
+                                        }
+                                        canvasTo={workspacePath("/canvas")}
+                                    />
+                                ) : (
+                                    <header className="creation-start-heading">
+                                        <div>
+                                            <h1>{themeHomeHeading || t("create.page.heading", { brand: brandName })}</h1>
+                                            <p>{t("create.page.subheading")}</p>
+                                        </div>
+                                        <button type="button" className="creation-history-entry" aria-label={t("create.page.viewHistory")} aria-expanded={historyOpen} onClick={() => setHistoryOpen(true)}>
+                                            <History aria-hidden="true" />
+                                            <span>{t("create.history.title")}</span>
+                                        </button>
+                                    </header>
+                                )}
                                 <div className={cn("creation-composer-stage is-home-mode", agentMode && "is-agent-mode")}>
                                     <CreationModeCard
                                         mode={mode}

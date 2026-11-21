@@ -1,0 +1,325 @@
+/* 作品广场：官方素材（图片 / 视频 / 音频）的作品墙。
+   和画布板块同一套表面层次：卡片走 --hwy-surface，封面走 --hwy-surface-raised；
+   封面统一 4:3，视频叠播放键、有时长标，音频只留类型角标。 */
+
+.hwy-gallery {
+    width: 100%;
+    margin-top: var(--space-6, 28px);
+    text-align: left;
+    animation: hwy-gallery-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hwy-gallery-in {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 14px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+.hwy-gallery-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+/* 作品广场的「标题」就是灵感大厅那枚大切换字，这里只留计数与素材库入口。 */
+.hwy-gallery-count {
+    color: inherit;
+    font-size: 12px;
+    opacity: 0.62;
+}
+.hwy-gallery-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: color-mix(in srgb, var(--hwy-ink) 56%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+    text-decoration: none;
+    transition: color 160ms ease;
+}
+
+.hwy-gallery-more:hover {
+    color: var(--hwy-ink);
+}
+
+.hwy-gallery-more svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 分类筛选：和灵感大厅的筛选条同一套轻重，纯文字胶囊，选中项强调色描边。 */
+.hwy-gallery-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.hwy-gallery-filter {
+    padding: 4px 12px;
+    border: 1px solid var(--hwy-line);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    opacity: 0.7;
+    transition:
+        opacity 160ms ease,
+        border-color 160ms ease,
+        background 160ms ease;
+}
+
+.hwy-gallery-filter:hover {
+    opacity: 1;
+}
+
+.hwy-gallery-filter.is-active {
+    border-color: color-mix(in srgb, var(--hwy-blue) 60%, var(--hwy-line));
+    background: color-mix(in srgb, var(--hwy-blue) 12%, transparent);
+    color: var(--hwy-ink);
+    opacity: 1;
+    font-weight: 500;
+}
+
+.hwy-gallery-filter:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+/* 网格：图片 4:3、视频 16:9，两类高度不同，所以按行顶对齐而不是拉伸。 */
+.hwy-gallery-grid {
+    display: grid;
+    align-items: start;
+    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    gap: 14px;
+}
+
+/* 卡片本体是 button：清掉按钮默认边框与文字样式，整块可点开详情。 */
+.hwy-gallery-card {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 6px 6px 10px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--hwy-surface);
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transition:
+        background 160ms ease,
+        transform 160ms ease;
+}
+
+.hwy-gallery-card:hover {
+    background: var(--hwy-surface-raised);
+    transform: translateY(-2px);
+}
+
+.hwy-gallery-card:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+.hwy-gallery-cover {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--hwy-line);
+    border-radius: 12px;
+    background: var(--hwy-surface-raised);
+}
+
+.hwy-gallery-cover img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 视频换成 16:9 的横画幅，图片与音频保持 4:3——两类作品一眼能分开。 */
+.hwy-gallery-card[data-kind="video"] .hwy-gallery-cover {
+    aspect-ratio: 16 / 9;
+}
+
+/* 视频：居中播放键，和灵感大厅的视频卡同一套画法。 */
+.hwy-gallery-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+    color: #ffffff;
+}
+
+.hwy-gallery-play svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 时长 / 音频角标压在画面上，用半透明黑底，深浅主题都读得清。 */
+.hwy-gallery-time {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.hwy-gallery-kind {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+}
+
+.hwy-gallery-kind svg {
+    width: 14px;
+    height: 14px;
+}
+
+.hwy-gallery-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 4px;
+}
+
+.hwy-gallery-copy strong {
+    overflow: hidden;
+    color: var(--hwy-ink);
+    font-size: var(--fs-body-sm, 14px);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hwy-gallery-copy small {
+    overflow: hidden;
+    color: color-mix(in srgb, var(--hwy-ink) 52%, transparent);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hwy-gallery-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 6px 10px;
+}
+
+.hwy-gallery-skeleton > span:first-child {
+    aspect-ratio: 4 / 3;
+    border: 1px solid var(--hwy-line);
+    border-radius: 12px;
+    background: var(--hwy-surface-raised);
+}
+
+.hwy-gallery-skeleton > span:last-child {
+    width: 62%;
+    height: 13px;
+    margin: 0 4px;
+    border-radius: 999px;
+    background: var(--hwy-surface-raised);
+}
+
+/* 空态 / 未登录 / 失败态横跨整行。 */
+.hwy-gallery-state {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 16px;
+    border: 1px dashed var(--hwy-line);
+    border-radius: 14px;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+}
+
+.hwy-gallery-state > svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+}
+
+.hwy-gallery-state button {
+    padding: 4px 12px;
+    border: 1px solid var(--hwy-line-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--hwy-ink);
+    cursor: pointer;
+    font: inherit;
+}
+
+.hwy-gallery-state button:hover {
+    border-color: var(--hwy-ink);
+}
+
+.hwy-gallery-state button:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .hwy-gallery-grid {
+        grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+        gap: 10px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hwy-gallery {
+        animation: none;
+    }
+}
+
+/* 作品广场的分类切换与灵感大厅必须长得一样：上游 SegmentedControl 的容器底色走上下文变量，
+   放在 .hwy-gallery 里解析成了页面同色，浅色下看着像"没有容器"。这里显式用同一份
+   --user-surface-muted 与同一档内边距，两处从视觉到尺寸都对齐。 */
+:root[data-skin="hongweiyu"] .hwy-gallery .app-segmented {
+    padding: 4px;
+    border-radius: 8px;
+    background: var(--user-surface-muted);
+}
+
+/* 作品广场不再单独占一行标题：分类胶囊与「官方素材库」并成一行，紧贴上面的切换大字，
+   原本 28px 上间距 + 空标题行会在这里留下一大片空白。 */
+:root[data-skin="hongweiyu"] .hwy-gallery {
+    margin-top: 0;
+}
+
+.hwy-gallery-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}

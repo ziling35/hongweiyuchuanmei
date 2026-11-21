@@ -1,0 +1,187 @@
+/* 首页 hero：大标题 → 副标题 → 「创作 / 画布」分段。
+   字号与间距取自参考截图（1921×692 下：标题高 38、副标题高 13、分段高约 44）。 */
+
+.hwy-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: var(--space-3);
+    text-align: center;
+}
+
+.hwy-hero-history {
+    position: absolute;
+    top: 0;
+    right: 0;
+    white-space: nowrap;
+}
+
+.hwy-hero-history .creation-history-entry {
+    white-space: nowrap;
+}
+.hwy-hero-title {
+    margin: 0;
+    color: var(--hwy-ink);
+    font-size: clamp(26px, 2.6vw, 34px);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.24;
+}
+
+.hwy-hero-subtitle {
+    margin: 12px 0 0;
+    max-width: 640px;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    font-size: var(--fs-body-sm, 14px);
+    line-height: 1.6;
+}
+
+/* 分段：容器是比页面略亮一档的胶囊，选中项固定白底深字（浅色/深色都成立）。 */
+.hwy-hero-tabs {
+    display: inline-flex;
+    margin-top: var(--space-5);
+    padding: 4px;
+    gap: 4px;
+    border: 1px solid var(--hwy-line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--hwy-ink) 8%, var(--hwy-page));
+}
+
+/* 两个视图入口现在是 button（切换页面内视图），所以这里要显式清掉按钮自带的边框和底色。 */
+.hwy-hero-tab {
+    display: inline-flex;
+    min-width: 152px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: color-mix(in srgb, var(--hwy-ink) 62%, transparent);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--fs-body-sm, 14px);
+    font-weight: 500;
+    text-decoration: none;
+    transition:
+        background 160ms ease,
+        color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.hwy-hero-tab:hover {
+    color: var(--hwy-ink);
+}
+
+/* 选中项：白胶囊上压两团柔光（左橙右蓝），对齐即梦「生成」按钮那种彩色白胶囊。
+   两层都是背景图、永远在文字下面，所以深浅两套主题可以共用同一档深字。 */
+.hwy-hero-tab.is-active {
+    background-color: #ffffff;
+    background-image: radial-gradient(58% 150% at 2% 30%, rgba(255, 149, 62, 0.6) 0%, rgba(255, 149, 62, 0) 74%), radial-gradient(62% 160% at 98% 72%, rgba(58, 174, 255, 0.66) 0%, rgba(58, 174, 255, 0) 76%);
+    color: #0f1214;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.hwy-hero-tab:focus-visible {
+    outline: 2px solid var(--hwy-blue);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .hwy-hero-tab {
+        min-width: 118px;
+    }
+    .hwy-hero-history {
+        position: static;
+        margin-top: var(--space-2);
+    }
+}
+
+/* 标题逐字浮现：模糊 + 上浮 + 淡入，每字 32ms 递进（延迟由 hero.tsx 内联给出）。
+   只动 opacity / transform / filter，且只在首帧播一次，不参与后续滚动。 */
+.hwy-hero-char {
+    display: inline-block;
+    animation: hwy-char-in 760ms cubic-bezier(0.16, 1, 0.3, 1) var(--hwy-char-delay, 0ms) both;
+}
+
+@keyframes hwy-char-in {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 16px, 0);
+        filter: blur(7px);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+        filter: blur(0);
+    }
+}
+
+/* 「灵感」两个字：平时就是标题色，隔一段时间有一道彩色光带从上方扫过去。
+   做法照即梦首页标题的扫光：conic-gradient 的圆心放在文字上方框外，色带上只有
+   一段是彩色、其余是标题色；把 --hwy-sweep-angle 转一圈，这段彩色就扫过文字。
+   角度必须用 @property 注册成 <angle>，否则自定义属性无法插值，渐变会是跳变的。
+   ink 段一直铺到 175deg：字面在静止时覆盖色标 26°~157°，铺到 140° 的话字尾会漏出青色。 */
+@property --hwy-sweep-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 90deg;
+}
+
+.hwy-hero-char.is-accent {
+    --hwy-sweep-angle: 90deg;
+    background-image: conic-gradient(from var(--hwy-sweep-angle) at 53% -36%, #ffe3d4 0deg, var(--hwy-ink) 6deg, var(--hwy-ink) 175deg, #1b60ff 190deg, #24aef0 205deg, #22f1ff 250deg, var(--hwy-ink) 262deg, #f6ec00 285deg, #ff772b 336deg, #ffe3d4 360deg);
+    background-position: 50% 50%;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation:
+        hwy-char-in 760ms cubic-bezier(0.16, 1, 0.3, 1) var(--hwy-char-delay, 0ms) both,
+        hwy-accent-sweep 7s ease-in-out 700ms infinite;
+}
+
+/* 每次挂载都立刻扫一次：0%→26% 转完一整圈，之后停在等价角度等下一轮。
+   90deg 与 -270deg 相差整 360°，所以循环重启时不会跳。 */
+@keyframes hwy-accent-sweep {
+    0% {
+        --hwy-sweep-angle: 90deg;
+    }
+    26%,
+    100% {
+        --hwy-sweep-angle: -270deg;
+    }
+}
+
+/* 分段胶囊与副标题随后跟上，避免只有标题在动。 */
+.hwy-hero-subtitle,
+.hwy-hero-tabs {
+    animation: hwy-fade-up 700ms cubic-bezier(0.16, 1, 0.3, 1) 240ms both;
+}
+
+@keyframes hwy-fade-up {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hwy-hero-char,
+    .hwy-hero-subtitle,
+    .hwy-hero-tabs {
+        animation: none;
+    }
+    /* 静息状态下这两个字就是标题色，这里只关掉扫光。 */
+    .hwy-hero-char.is-accent {
+        animation: none;
+    }
+}
