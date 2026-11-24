@@ -2,6 +2,8 @@
 
 本手册只适用于 `ziling35/hongweiyuchuanmei` 这个 fork，说明如何在跟随上游的同时维护自己的改动、构建自己的镜像并更新自己的服务器。上游文档（[在线更新与安全回退](docs/content/docs/backend/system-update.mdx)）仍描述官方 GHCR 与官方更新器，两者不要混用。
 
+发版、服务器更新、新机器部署、主题（皮肤）迁移和线上排查的具体命令见 [FORK_DEPLOY_RUNBOOK.md](FORK_DEPLOY_RUNBOOK.md)。
+
 ## 1. 分支模型
 
 | 分支 | 作用 | 规则 |
