@@ -625,6 +625,178 @@ func TestBannerAnnouncementRejectsUnknownNoticeType(t *testing.T) {
 	}
 }
 
+func TestBannerAnnouncementBackground(t *testing.T) {
+	svc, _ := newAnnouncementImageTestService(t)
+	admin := &model.User{ID: "admin", Role: model.UserRoleAdmin, Status: model.UserStatusActive}
+
+	// 未传底色时补成默认模式：旧记录与新建记录都能直接渲染。
+	def, err := svc.CreateBannerAnnouncement(admin, CreateBannerAnnouncementRequest{Title: "默认底色", Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if def.BackgroundMode != bannerBackgroundDefaultMode || def.BackgroundColor != "" || def.BackgroundGradient != "" {
+		t.Fatalf("default background = %+v", def)
+	}
+
+	// 纯色：大小写归一化，非当前模式的字段被清空。
+	solid, err := svc.CreateBannerAnnouncement(admin, CreateBannerAnnouncementRequest{
+		Title:           "自定义纯色",
+		BackgroundMode:  "SOLID",
+		BackgroundColor: "#4338ca",
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if solid.BackgroundMode != "solid" || solid.BackgroundColor != "#4338CA" || solid.BackgroundGradient != "" {
+		t.Fatalf("solid = %+v", solid)
+	}
+
+	// 渐变：只存预设键，颜色列清空；读回路径（仓储 + 公开接口）都要保留。
+	gradient, err := svc.CreateBannerAnnouncement(admin, CreateBannerAnnouncementRequest{
+		Title:              "预设渐变",
+		BackgroundMode:     "gradient",
+		BackgroundColor:    "#FFFFFF",
+		BackgroundGradient: "aurora",
+		Status:             "active",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gradient.BackgroundMode != "gradient" || gradient.BackgroundGradient != "aurora" || gradient.BackgroundColor != "" {
+		t.Fatalf("gradient = %+v", gradient)
+	}
+	stored, err := svc.repo.BannerAnnouncement(gradient.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.BackgroundGradient != "aurora" {
+		t.Fatalf("stored = %+v", stored)
+	}
+	active, err := svc.ActiveBannerAnnouncements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range active {
+		if item.ID == gradient.ID && item.BackgroundMode == "gradient" && item.BackgroundGradient == "aurora" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("active = %+v, want gradient aurora", active)
+	}
+
+	// 更新走显式字段表：漏字段会被静默清空的回归点。
+	updated, err := svc.UpdateBannerAnnouncement(admin, gradient.ID, UpdateBannerAnnouncementRequest{
+		Title:           "改成纯色",
+		BackgroundMode:  "solid",
+		BackgroundColor: "#0F172A",
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.BackgroundMode != "solid" || updated.BackgroundColor != "#0F172A" || updated.BackgroundGradient != "" {
+		t.Fatalf("updated = %+v", updated)
+	}
+	reloaded, err := svc.repo.BannerAnnouncement(gradient.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.BackgroundMode != "solid" || reloaded.BackgroundColor != "#0F172A" || reloaded.BackgroundGradient != "" {
+		t.Fatalf("reloaded = %+v", reloaded)
+	}
+
+	// 全部合法取值都必须被接受，否则后台选了却被静默丢弃。
+	for value := range bannerBackgroundGradients {
+		created, err := svc.CreateBannerAnnouncement(admin, CreateBannerAnnouncementRequest{
+			Title:              "渐变 " + value,
+			BackgroundMode:     "gradient",
+			BackgroundGradient: value,
+			Status:             "active",
+		})
+		if err != nil {
+			t.Fatalf("gradient %q should be accepted: %v", value, err)
+		}
+		if created.BackgroundGradient != value {
+			t.Fatalf("gradient %q normalized to %q", value, created.BackgroundGradient)
+		}
+	}
+}
+
+func TestBannerAnnouncementRejectsInvalidBackground(t *testing.T) {
+	svc, _ := newAnnouncementImageTestService(t)
+	admin := &model.User{ID: "admin", Role: model.UserRoleAdmin, Status: model.UserStatusActive}
+
+	cases := []struct {
+		name string
+		req  CreateBannerAnnouncementRequest
+	}{
+		{name: "未知模式", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "rainbow", Status: "active"}},
+		{name: "纯色缺值", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "solid", Status: "active"}},
+		{name: "纯色非十六进制", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "solid", BackgroundColor: "red", Status: "active"}},
+		{name: "纯色注入", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "solid", BackgroundColor: "#fff;background:url(x)", Status: "active"}},
+		{name: "渐变缺方案", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "gradient", Status: "active"}},
+		{name: "渐变不在预设", req: CreateBannerAnnouncementRequest{Title: "标题", BackgroundMode: "gradient", BackgroundGradient: "rainbow", Status: "active"}},
+	}
+	for _, testCase := range cases {
+		if _, err := svc.CreateBannerAnnouncement(admin, testCase.req); err == nil {
+			t.Fatalf("%s: expected rejection", testCase.name)
+		}
+	}
+
+	// 更新路径同样受约束，不能绕过校验把已存在的行改成脏数据。
+	created, err := svc.CreateBannerAnnouncement(admin, CreateBannerAnnouncementRequest{Title: "已有通知", Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateBannerAnnouncement(admin, created.ID, UpdateBannerAnnouncementRequest{Title: "改坏", BackgroundMode: "gradient", BackgroundGradient: "rainbow", Status: "active"}); err == nil {
+		t.Fatal("update with unknown gradient should be rejected")
+	}
+}
+
+// 底色归一化是纯函数，不依赖数据库：本机 CGO 关闭时也能验证白名单与字段互斥。
+func TestNormalizeBannerBackground(t *testing.T) {
+	mode, color, gradient, err := normalizeBannerBackground("", "#FFFFFF", "aurora")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 空模式补默认值，并清掉不属于该模式的字段。
+	if mode != bannerBackgroundDefaultMode || color != "" || gradient != "" {
+		t.Fatalf("empty mode = %q %q %q", mode, color, gradient)
+	}
+
+	mode, color, gradient, err = normalizeBannerBackground(" Solid ", "#4338ca", "aurora")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "solid" || color != "#4338CA" || gradient != "" {
+		t.Fatalf("solid = %q %q %q", mode, color, gradient)
+	}
+
+	mode, color, gradient, err = normalizeBannerBackground("gradient", "#FFFFFF", " Aurora ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode != "gradient" || color != "" || gradient != "aurora" {
+		t.Fatalf("gradient = %q %q %q", mode, color, gradient)
+	}
+
+	for _, bad := range [][3]string{
+		{"rainbow", "", ""},
+		{"solid", "", ""},
+		{"solid", "red", ""},
+		{"solid", "#fff;background:url(x)", ""},
+		{"gradient", "", ""},
+		{"gradient", "", "rainbow"},
+	} {
+		if _, _, _, err := normalizeBannerBackground(bad[0], bad[1], bad[2]); err == nil {
+			t.Fatalf("%v: expected rejection", bad)
+		}
+	}
+}
+
 // emoji 图标素材就是普通文本分段：不需要独立字段或白名单，但必须能完整往返、并入纯文本标题参与检索。
 func TestBannerAnnouncementTitleRunsWithEmoji(t *testing.T) {
 	svc, _ := newAnnouncementImageTestService(t)

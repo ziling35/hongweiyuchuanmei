@@ -343,11 +343,16 @@ test("banner announcement editor keeps title styles through edit, save and statu
     expect(panel).toContain("<AdminModal");
     expect(panel).not.toContain("<Modal");
     // 非表单控件不能放进 Form.Item（会被注入 value/onChange/ref）。
-    expect(panel).toContain("<BannerNoticePreview runs={titleRuns} hasLink={Boolean(linkValue?.trim())} noticeType={noticeType} />");
+    expect(panel).toContain("<BannerNoticePreview runs={titleRuns} hasLink={Boolean(linkValue?.trim())} noticeType={noticeType} backgroundMode={backgroundMode} backgroundColor={backgroundColor} backgroundGradient={backgroundGradient} />");
     // 通知类型在后台要有独立入口；emoji 图标不设独立字段，经编辑器「图标」按钮插入。
     expect(panel).toContain("<BannerNoticeTypeSelector");
     expect(panel).not.toContain("BannerNoticeIconPicker");
     expect(panel).not.toContain("normalizeBannerNoticeIcon");
+    // 底色三字段同样走显式字段表：开关状态这条路径漏传会把自定义底色清空。
+    expect(panel).toContain("backgroundMode: normalizeBannerBackgroundMode(banner.backgroundMode)");
+    expect(panel).toContain("backgroundColor: normalizeBannerTitleHex(banner.backgroundColor)");
+    expect(panel).toContain("backgroundGradient: normalizeBannerBackgroundGradient(banner.backgroundGradient)");
+    expect(panel).toContain("<BannerBackgroundEditor");
 
     expect(editorSource).toContain("applyBannerTitleStyle");
     expect(editorSource).toContain("clearBannerTitleStyle");
@@ -358,13 +363,14 @@ test("banner announcement editor keeps title styles through edit, save and statu
     expect(editorSource).toContain("<BannerNoticeEmojiPopover");
     expect(editorSource).toContain("insertContent(emoji)");
     expect(editorSource).not.toContain("BannerAnnouncementIcon");
-    // 预览必须走前台同一份展示单元，否则「预览即前台」不成立。
-    expect(editorSource).toContain("bannerAnnouncementBarStyle(noticeType)");
+    // 预览必须走前台同一份展示单元，否则「预览即前台」不成立；自定义底色也要联动到对比度提示。
+    expect(editorSource).toContain("bannerAnnouncementBarStyle({ noticeType, backgroundMode, backgroundColor, backgroundGradient })");
+    expect(editorSource).toContain("bannerAnnouncementBackgroundReference");
 
-    // 前台通知条必须按分段渲染，不能退回纯文本；底色来自当前通知的类型，标题前不再有固定图标。
+    // 前台通知条必须按分段渲染，不能退回纯文本；底色来自这条通知自己的配置，标题前不再有固定图标。
     expect(sliderSource).toContain("BannerAnnouncementTitle");
     expect(sliderSource).toContain("currentBanner.titleRuns");
-    expect(slider).toContain("bannerAnnouncementBarStyle(currentBanner.noticeType)");
+    expect(slider).toContain("bannerAnnouncementBarStyle(currentBanner)");
     expect(slider).not.toContain("BannerAnnouncementIcon");
     expect(slider).not.toContain("notice-banner-surface");
 

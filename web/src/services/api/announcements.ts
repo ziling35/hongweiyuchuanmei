@@ -1,6 +1,6 @@
 import { http, apiBaseURL } from "@/services/api/request";
 import type { RemoteResource } from "@/services/api/resources";
-import type { BannerNoticeType } from "@/lib/announcements/banner-notice";
+import type { BannerBackgroundGradientKey, BannerBackgroundMode, BannerNoticeType } from "@/lib/announcements/banner-notice";
 import type { BannerTitleRun } from "@/lib/announcements/banner-title";
 
 export type { BannerTitleRun };
@@ -35,7 +35,6 @@ export type AdminAnnouncementListParams = {
     page?: number;
     pageSize?: number;
 };
-
 
 export function getAnnouncementFeed() {
     return http.get<AnnouncementFeed>("/announcements");
@@ -83,8 +82,14 @@ export type BannerAnnouncement = {
     title: string;
     /** 标题样式分段；为空表示纯文本标题（取值白名单见 lib/announcements/banner-title）。 */
     titleRuns?: BannerTitleRun[];
-    /** 通知类型，决定通知条底色；未知值按「公告」处理。 */
+    /** 通知类型，决定「跟随类型」模式下的通知条底色；未知值按「公告」处理。 */
     noticeType?: BannerNoticeType;
+    /** 底色来源："type"（跟随类型，默认） / "solid"（自定义纯色） / "gradient"（预设渐变）。 */
+    backgroundMode?: BannerBackgroundMode;
+    /** 自定义纯色的 #RRGGBB，仅 backgroundMode 为 solid 时有值。 */
+    backgroundColor?: string;
+    /** 预设渐变键，仅 backgroundMode 为 gradient 时有值。 */
+    backgroundGradient?: BannerBackgroundGradientKey;
     link?: string;
     status: "active" | "disabled";
     sortOrder?: number;
@@ -106,6 +111,9 @@ export type AdminBannerPayload = {
     title: string;
     titleRuns?: BannerTitleRun[];
     noticeType?: BannerNoticeType;
+    backgroundMode?: BannerBackgroundMode;
+    backgroundColor?: string;
+    backgroundGradient?: BannerBackgroundGradientKey;
     link?: string;
     status: "active" | "disabled";
     sortOrder?: number;

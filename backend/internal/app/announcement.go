@@ -515,14 +515,19 @@ type CreateBannerAnnouncementRequest struct {
 	Title string `json:"title"`
 	// TitleRuns 是标题的样式分段；非空时 Title 由分段文本拼接得出，请求里的 Title 只作兼容兜底。
 	TitleRuns []model.BannerTitleRun `json:"titleRuns"`
-	// NoticeType 通知类型，决定通知条底色；空值按默认类型（公告）处理。
+	// NoticeType 通知类型，决定「跟随类型」模式下的通知条底色；空值按默认类型（公告）处理。
 	// 图标素材（emoji）内嵌在 TitleRuns 的文本里，不单独存字段。
-	NoticeType string     `json:"noticeType"`
-	Link       string     `json:"link"`
-	Status     string     `json:"status"` // "active" | "disabled"
-	SortOrder  int        `json:"sortOrder"`
-	StartsAt   *time.Time `json:"startsAt"`
-	EndsAt     *time.Time `json:"endsAt"`
+	NoticeType string `json:"noticeType"`
+	// 底色来源：type（默认，跟随通知类型） / solid（自定义纯色） / gradient（预设渐变）。
+	// 三个字段按模式互斥，非当前模式用到的字段会被清空，切换模式不会残留上一次的色值。
+	BackgroundMode     string     `json:"backgroundMode"`
+	BackgroundColor    string     `json:"backgroundColor"`
+	BackgroundGradient string     `json:"backgroundGradient"`
+	Link               string     `json:"link"`
+	Status             string     `json:"status"` // "active" | "disabled"
+	SortOrder          int        `json:"sortOrder"`
+	StartsAt           *time.Time `json:"startsAt"`
+	EndsAt             *time.Time `json:"endsAt"`
 }
 
 type UpdateBannerAnnouncementRequest = CreateBannerAnnouncementRequest
@@ -733,6 +738,48 @@ func normalizeBannerNoticeType(value string) (string, error) {
 	return normalized, nil
 }
 
+// 通知条底色主题：与通知类型色并列的第二组底色来源。
+//
+// 渐变键必须与前端 web/src/lib/announcements/banner-notice.ts 的 BANNER_BACKGROUND_GRADIENTS 逐项一致，
+// 由 web/test/banner-notice.test.ts 双向校验，避免后台选了却渲染不出来。
+var bannerBackgroundModes = map[string]struct{}{
+	"type": {}, "solid": {}, "gradient": {},
+}
+var bannerBackgroundGradients = map[string]struct{}{
+	"aurora": {}, "sunset": {}, "ocean": {}, "forest": {},
+	"violet": {}, "crimson": {}, "midnight": {}, "gold": {},
+}
+
+const bannerBackgroundDefaultMode = "type"
+
+// normalizeBannerBackground 归一化底色三字段：模式决定哪一项生效，另外两项清空；
+// 选中模式却缺少对应取值时直接拒绝，避免存进一条「看起来选了颜色但渲染成透明」的记录。
+func normalizeBannerBackground(mode, color, gradient string) (string, string, string, error) {
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	if normalizedMode == "" {
+		normalizedMode = bannerBackgroundDefaultMode
+	}
+	if _, ok := bannerBackgroundModes[normalizedMode]; !ok {
+		return "", "", "", BadAuthRequest("通知条底色来源无效，仅支持跟随类型、自定义纯色或渐变")
+	}
+	switch normalizedMode {
+	case "solid":
+		value := strings.ToUpper(strings.TrimSpace(color))
+		if !isBannerTitleHexColor(value) {
+			return "", "", "", BadAuthRequest("自定义底色需为 #RRGGBB 格式")
+		}
+		return normalizedMode, value, "", nil
+	case "gradient":
+		value := strings.ToLower(strings.TrimSpace(gradient))
+		if _, ok := bannerBackgroundGradients[value]; !ok {
+			return "", "", "", BadAuthRequest("渐变底色仅支持预设方案")
+		}
+		return normalizedMode, "", value, nil
+	default:
+		return normalizedMode, "", "", nil
+	}
+}
+
 func (s *Service) CreateBannerAnnouncement(actor *model.User, req CreateBannerAnnouncementRequest) (*model.BannerAnnouncement, error) {
 	if err := s.RequireAdmin(actor); err != nil {
 		return nil, err
@@ -749,6 +796,10 @@ func (s *Service) CreateBannerAnnouncement(actor *model.User, req CreateBannerAn
 	if err != nil {
 		return nil, err
 	}
+	backgroundMode, backgroundColor, backgroundGradient, err := normalizeBannerBackground(req.BackgroundMode, req.BackgroundColor, req.BackgroundGradient)
+	if err != nil {
+		return nil, err
+	}
 	status := strings.TrimSpace(req.Status)
 	if status != "active" && status != "disabled" {
 		return nil, BadAuthRequest("通知状态无效，仅支持 active 或 disabled")
@@ -758,18 +809,21 @@ func (s *Service) CreateBannerAnnouncement(actor *model.User, req CreateBannerAn
 	}
 	now := time.Now()
 	banner := &model.BannerAnnouncement{
-		ID:         newID(),
-		Title:      title,
-		TitleRuns:  titleRuns,
-		NoticeType: noticeType,
-		Link:       link,
-		Status:     status,
-		SortOrder:  req.SortOrder,
-		StartsAt:   req.StartsAt,
-		EndsAt:     req.EndsAt,
-		CreatedBy:  actor.ID,
-		CreatedAt:  now,
-		UpdatedAt:  now,
+		ID:                 newID(),
+		Title:              title,
+		TitleRuns:          titleRuns,
+		NoticeType:         noticeType,
+		BackgroundMode:     backgroundMode,
+		BackgroundColor:    backgroundColor,
+		BackgroundGradient: backgroundGradient,
+		Link:               link,
+		Status:             status,
+		SortOrder:          req.SortOrder,
+		StartsAt:           req.StartsAt,
+		EndsAt:             req.EndsAt,
+		CreatedBy:          actor.ID,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	if err := s.repo.CreateBannerAnnouncement(banner); err != nil {
 		return nil, err
@@ -800,6 +854,10 @@ func (s *Service) UpdateBannerAnnouncement(actor *model.User, id string, req Upd
 	if err != nil {
 		return nil, err
 	}
+	backgroundMode, backgroundColor, backgroundGradient, err := normalizeBannerBackground(req.BackgroundMode, req.BackgroundColor, req.BackgroundGradient)
+	if err != nil {
+		return nil, err
+	}
 	status := strings.TrimSpace(req.Status)
 	if status != "active" && status != "disabled" {
 		return nil, BadAuthRequest("通知状态无效，仅支持 active 或 disabled")
@@ -810,6 +868,9 @@ func (s *Service) UpdateBannerAnnouncement(actor *model.User, id string, req Upd
 	banner.Title = title
 	banner.TitleRuns = titleRuns
 	banner.NoticeType = noticeType
+	banner.BackgroundMode = backgroundMode
+	banner.BackgroundColor = backgroundColor
+	banner.BackgroundGradient = backgroundGradient
 	banner.Link = link
 	banner.Status = status
 	banner.SortOrder = req.SortOrder

@@ -1,20 +1,18 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 
 import { getActiveBanners, type BannerAnnouncement } from "@/services/api/announcements";
-import {
-    BannerAnnouncementLinkHint,
-    BannerAnnouncementTitle,
-    bannerAnnouncementBarStyle,
-} from "@/components/layout/banner-announcement-content";
+import { BannerAnnouncementLinkHint, BannerAnnouncementTitle, bannerAnnouncementBarStyle } from "@/components/layout/banner-announcement-content";
 import { useUserStore } from "@/stores/use-user-store";
 
 const BANNER_AUTO_SLIDE_MS = 4000;
 const BANNER_DISMISS_STORAGE_PREFIX = "yingce.banner-announcements.dismissed";
+/** 通知条高度写进 :root 的自定义属性；皮肤里固定在窗口顶部的元素（右上角操作组、移动端菜单）按它下移。 */
+const BANNER_HEIGHT_VAR = "--notice-banner-height";
 
 export function BannerAnnouncementsSlider() {
     const { t } = useTranslation();
@@ -23,6 +21,7 @@ export function BannerAnnouncementsSlider() {
     const userId = useUserStore((state) => state.user?.id);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [dismissed, setDismissed] = useState(false);
+    const barRef = useRef<HTMLDivElement | null>(null);
 
     const { data } = useQuery({
         queryKey: ["active-banner-announcements"],
@@ -64,6 +63,25 @@ export function BannerAnnouncementsSlider() {
     useEffect(() => {
         setDismissed(fingerprint ? hasBannerDismissal(userId, fingerprint) : false);
     }, [fingerprint, userId]);
+    // 通知条是布局流里的第一行；皮肤里 position: fixed 的顶栏操作组不会跟着下移，
+    // 所以把真实高度发布成 CSS 变量，由皮肤按 var(--notice-banner-height) 偏移。
+    // 用 ResizeObserver 而不是写死 40px：标题换字号或换字体后条高会变。
+    useEffect(() => {
+        if (!banners.length || dismissed) {
+            document.documentElement.style.removeProperty(BANNER_HEIGHT_VAR);
+            return;
+        }
+        const node = barRef.current;
+        if (!node) return;
+        const publish = () => document.documentElement.style.setProperty(BANNER_HEIGHT_VAR, `${node.offsetHeight}px`);
+        publish();
+        const observer = new ResizeObserver(publish);
+        observer.observe(node);
+        return () => {
+            observer.disconnect();
+            document.documentElement.style.removeProperty(BANNER_HEIGHT_VAR);
+        };
+    }, [banners.length, dismissed]);
 
     const handleDismiss = () => {
         rememberBannerDismissal(userId, fingerprint);
@@ -73,12 +91,12 @@ export function BannerAnnouncementsSlider() {
     if (!banners.length || dismissed) return null;
     const currentBanner = banners[currentIndex % banners.length];
 
-    // 底色随每条通知的类型切换：加过渡让不同风格的条目轮播时平滑换色，与标题动画节奏一致。
+    // 底色来自这条通知自己的配置（类型色 / 自定义纯色 / 预设渐变）：加过渡让条目轮播时平滑换色，与标题动画节奏一致。
+    // z-10 不是装饰：hongweiyu 皮肤的 .hwy-backdrop（position: fixed / z-index: -1 的网格画布）
+    // 挂在舞台子树里，被父级堆叠上下文困住后会画到通知条上面，把左/右两端刷成一块「纯色」。
+    // 通知条属于顶栏 chrome，必须压在页面装饰之上。
     return (
-        <div
-            className="relative flex min-h-10 w-full shrink-0 items-center justify-center px-4 py-2 text-white transition-colors duration-200 ease-out"
-            style={bannerAnnouncementBarStyle(currentBanner.noticeType)}
-        >
+        <div ref={barRef} className="relative z-10 flex min-h-10 w-full shrink-0 items-center justify-center px-4 py-2 text-white transition-colors duration-200 ease-out" style={bannerAnnouncementBarStyle(currentBanner)}>
             <button
                 type="button"
                 onClick={handleClick}

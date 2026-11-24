@@ -166,14 +166,17 @@ func (r *Repository) UpdateBannerAnnouncement(banner *model.BannerAnnouncement) 
 		return err
 	}
 	updates := map[string]any{
-		"title":       banner.Title,
-		"title_runs":  banner.TitleRunsJSON,
-		"notice_type": banner.NoticeType,
-		"link":        banner.Link,
-		"status":      banner.Status,
-		"updated_at":  banner.UpdatedAt,
-		"starts_at":   banner.StartsAt,
-		"ends_at":     banner.EndsAt,
+		"title":               banner.Title,
+		"title_runs":          banner.TitleRunsJSON,
+		"notice_type":         banner.NoticeType,
+		"background_mode":     banner.BackgroundMode,
+		"background_color":    banner.BackgroundColor,
+		"background_gradient": banner.BackgroundGradient,
+		"link":                banner.Link,
+		"status":              banner.Status,
+		"updated_at":          banner.UpdatedAt,
+		"starts_at":           banner.StartsAt,
+		"ends_at":             banner.EndsAt,
 	}
 	return r.db.Model(&model.BannerAnnouncement{}).
 		Where("id = ?", banner.ID).

@@ -473,14 +473,19 @@ type BannerAnnouncement struct {
 	// TitleRuns 是标题的样式分段，前端按段渲染；持久化在 title_runs 文本列，由仓储层显式编解码。
 	TitleRuns     []BannerTitleRun `json:"titleRuns,omitempty" gorm:"-"`
 	TitleRunsJSON string           `json:"-" gorm:"column:title_runs;type:text"`
-	// NoticeType 决定通知条底色（"notice" | "activity" | "update" | "warning"），取值白名单见 app 层。
-	NoticeType string     `json:"noticeType" gorm:"size:24"`
-	Link       string     `json:"link" gorm:"size:500"`        // 点击跳转目标：http(s) 外链或 / 开头的站内路径；空表示不可点击
-	Status     string     `json:"status" gorm:"size:24;index"` // "active" | "disabled"
-	SortOrder  int        `json:"sortOrder" gorm:"index"`
-	StartsAt   *time.Time `json:"startsAt,omitempty" gorm:"index"`
-	EndsAt     *time.Time `json:"endsAt,omitempty" gorm:"index"`
-	CreatedBy  string     `json:"createdBy" gorm:"size:36"`
-	CreatedAt  time.Time  `json:"createdAt"`
-	UpdatedAt  time.Time  `json:"updatedAt"`
+	// NoticeType 决定「跟随类型」模式下的通知条底色（"notice" | "activity" | "update" | "warning"），取值白名单见 app 层。
+	NoticeType string `json:"noticeType" gorm:"size:24"`
+	// 底色来源：BackgroundMode 为 "type" 时用通知类型的主题色，"solid" 用 BackgroundColor，"gradient" 用 BackgroundGradient。
+	// 三个字段由 app 层统一归一化：不在当前模式里的字段一律清空，避免切换模式后残留旧值。
+	BackgroundMode     string     `json:"backgroundMode" gorm:"size:16"`
+	BackgroundColor    string     `json:"backgroundColor" gorm:"size:7"`
+	BackgroundGradient string     `json:"backgroundGradient" gorm:"size:24"`
+	Link               string     `json:"link" gorm:"size:500"`        // 点击跳转目标：http(s) 外链或 / 开头的站内路径；空表示不可点击
+	Status             string     `json:"status" gorm:"size:24;index"` // "active" | "disabled"
+	SortOrder          int        `json:"sortOrder" gorm:"index"`
+	StartsAt           *time.Time `json:"startsAt,omitempty" gorm:"index"`
+	EndsAt             *time.Time `json:"endsAt,omitempty" gorm:"index"`
+	CreatedBy          string     `json:"createdBy" gorm:"size:36"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	UpdatedAt          time.Time  `json:"updatedAt"`
 }

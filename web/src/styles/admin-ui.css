@@ -11301,6 +11301,82 @@ html[data-magicui-theme-vt="active"] .admin-shell * {
     background: var(--notice-banner-surface-warning);
 }
 
+/* 通知条底色：模式切换与渐变方案。渐变方案直接铺真实渐变，和前台是同一条 CSS。 */
+.admin-banner-bg-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-banner-bg-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--admin-card-border);
+    border-radius: 999px;
+    background: var(--admin-layer-1);
+    padding: 4px 12px;
+    color: var(--foreground);
+    font-size: var(--fs-label);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease;
+}
+
+.admin-banner-bg-mode:hover {
+    background: color-mix(in srgb, var(--foreground) 4%, var(--admin-layer-1));
+}
+
+.admin-banner-bg-mode.is-active {
+    border-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+    background: var(--control-selected-bg);
+}
+
+.admin-banner-bg-mode:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--ring) 62%, transparent);
+    outline-offset: 1px;
+}
+
+.admin-banner-gradient-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 8px;
+}
+
+.admin-banner-gradient-swatch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    border: 1px solid var(--admin-card-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: #ffffff;
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.admin-banner-gradient-swatch:hover {
+    border-color: color-mix(in srgb, var(--foreground) 26%, transparent);
+}
+
+.admin-banner-gradient-swatch.is-active {
+    border-color: color-mix(in srgb, var(--foreground) 52%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+
+.admin-banner-gradient-swatch:focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--ring) 62%, transparent);
+    outline-offset: 1px;
+}
+
 /* 模型定价编辑器：弹窗内只保留一个滚动区域。 */
 .admin-model-editor-modal .ant-modal-body {
     display: flex;

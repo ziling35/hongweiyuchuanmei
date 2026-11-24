@@ -5968,3 +5968,14 @@ URL 使用归属校验后的资源访问地址，本地存储也可签发厂商�
 - [ ] 在管理端为一个视频模型配置「5–10 秒按秒计费」价格档，确认创作端 5–10 秒内任意时长均命中该档报价与结算，区间外提示无价格。
 - [ ] 验证存量精确秒数价格档行为不变，旧数据在编辑器中正确回显为固定秒数。
 - 本地验证：新增 `channel_model_pricing_range_test.go`（区间解析、匹配、重叠拒绝、能力覆盖、可选时长过滤、默认时长）通过；`go test ./internal/app -count=1` 仅 `TestCreateWorkbenchVideoTaskUsesReferenceModeAndPrice` 因本地无 cgo 的 sqlite 环境失败，与本次改动无关；前端 `bun run typecheck` 通过。未做浏览器验收。
+
+## 待用户验证：常驻通知条底色与顶栏重叠
+
+- 已修复（顶栏显示）：`hongweiyu` 皮肤在创作首页把顶栏高度归零，并把右上角操作组（积分 / 充值 / 图标组）改成 `position: fixed; top: 10px`。常驻通知条是布局流第一行，fixed 定位不跟着下移，通知标题被操作组压住、右侧文字被遮掉。现在通知条用 `ResizeObserver` 把真实高度写进 `:root` 的 `--notice-banner-height`，皮肤的固定元素（右上角操作组、窄屏菜单按钮）改用 `calc(10px + var(--notice-banner-height, 0px))` 下移，通知关闭或卸载时清除该变量。
+- 已实现（底色自定义）：`banner_announcements` 新增 `background_mode` / `background_color` / `background_gradient`（迁移 112），后台编辑弹窗新增「通知条底色」：跟随类型 / 自定义纯色 / 8 个预设渐变（极光、日落、深海、森林、紫韵、烈焰、午夜、鎏金）。前台通知条、后台列表「底色」列、深浅两套主题的预览共用同一个 `bannerAnnouncementBarStyle`，改一处三处同时生效。
+- 已修复（通知条左/右两端像一块纯色、与整条渐变断开）：不是渐变本身的问题。`hongweiyu` 皮肤的网格背景画布 `.hwy-backdrop`（`position: fixed; inset: 0; z-index: -1`）挂在舞台子树里，被父级堆叠上下文困住后实际画到了通知条**上面**，把最左约 224px（正好侧栏宽度）和最右约 400px 刷成一层白色网格高光。用 1900×900 带会话的无头 Chrome 逐段隐藏验证：只隐藏舞台时该白层消失；把通知条刷成纯红后白层显形（`(255,0,0)` → `(255,102,101)`）；给通知条加 `z-index` 后恢复纯红。修复：通知条加 `relative z-10`，作为顶栏 chrome 压在页面装饰之上。
+- 已调整（渐变曲线）：改成「两端起笔快、中间留亮色平台」的十段曲线（0% → 6% → 12% → 18% → 26% 到亮色，26%–74% 保持亮色，之后镜像回落），宽屏下整条每一段都在变色；对比度提示改用中间平台（最亮处）作参考色。
+- 已重启后端并应用迁移 112：`/api/health` 返回 `schema.current=112 / expected=112 / ready=true`，`CurrentSchemaVersion` 常量同步改为 112（先前遗漏会被健康检查拒绝启动）。
+- [ ] 在后台把这条通知分别选纯色与渐变保存，确认刷新后仍保留，且前台通知条、列表底色列与深浅预览三处一致。
+- [ ] 桌面宽度下确认通知标题不再被右上角积分 / 充值 / 图标组遮挡；点通知条右侧关闭后，操作组回到窗口右上角原位。
+- 本地验证：`bun run typecheck` 通过；`bun test test/banner-notice.test.ts test/admin-ui-regressions.test.ts` 35 项通过（含渐变曲线形状断言）。开启仓库自带 w64devkit 后 `CGO_ENABLED=1 go test ./internal/app -run Banner` 11 项通过（含底色落库与非法取值拒绝），`go test ./internal/database -run TestCurrentSchemaVersionMatchesMigrationPlan` 通过。真实 Chrome 实测：1900×900 下通知条为 0–1884 满宽、侧栏在 y=40 之下不遮挡、右上角操作组落在通知条下方；881px 登录态截图逐像素采样，通知条从左端 `(79,13,15)` 平滑升到中心 `(162,23,82)` 再回落，无平涂段与断层。

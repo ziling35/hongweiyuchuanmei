@@ -6,22 +6,21 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { createAdminBanner, deleteAdminBanner, listAdminBanners, updateAdminBanner, type BannerAnnouncement } from "@/services/api/announcements";
 import {
-    createAdminBanner,
-    deleteAdminBanner,
-    listAdminBanners,
-    updateAdminBanner,
-    type BannerAnnouncement,
-} from "@/services/api/announcements";
-import {
+    BANNER_BACKGROUND_DEFAULT_MODE,
     BANNER_NOTICE_DEFAULT_TYPE,
-    bannerNoticeTypeLabel,
+    bannerBackgroundLabel,
+    normalizeBannerBackgroundGradient,
+    normalizeBannerBackgroundMode,
     normalizeBannerNoticeType,
+    type BannerBackgroundMode,
     type BannerNoticeType,
 } from "@/lib/announcements/banner-notice";
 import { bannerAnnouncementBarStyle } from "@/components/layout/banner-announcement-content";
-import { BANNER_TITLE_MAX_CHARS, bannerTitleCharCount, bannerTitlePlainText, normalizeBannerTitleRuns, type BannerTitleRun } from "@/lib/announcements/banner-title";
+import { BANNER_TITLE_MAX_CHARS, bannerTitleCharCount, bannerTitlePlainText, normalizeBannerTitleHex, normalizeBannerTitleRuns, type BannerTitleRun } from "@/lib/announcements/banner-title";
 import { AdminDataTable } from "./admin-ui";
+import { BannerBackgroundEditor } from "./banner-background-editor";
 import { BannerNoticeTypeSelector } from "./banner-notice-type-selector";
 import { BannerNoticePreview, BannerTitleEditor } from "./banner-title-editor";
 import { Select } from "@/components/ui/base/select";
@@ -36,13 +35,7 @@ type FormValues = {
 
 type BannerDialog = { mode: "create" } | { mode: "edit"; banner: BannerAnnouncement };
 
-export default function AdminBannerAnnouncementsPanel({
-    createOpen,
-    onCreateOpenChange,
-}: {
-    createOpen: boolean;
-    onCreateOpenChange: (open: boolean) => void;
-}) {
+export default function AdminBannerAnnouncementsPanel({ createOpen, onCreateOpenChange }: { createOpen: boolean; onCreateOpenChange: (open: boolean) => void }) {
     const { message, modal } = App.useApp();
     const queryClient = useQueryClient();
     const [form] = Form.useForm<FormValues>();
@@ -57,6 +50,9 @@ export default function AdminBannerAnnouncementsPanel({
     const [dialog, setDialog] = useState<BannerDialog | null>(null);
     const [titleRuns, setTitleRuns] = useState<BannerTitleRun[]>([]);
     const [noticeType, setNoticeType] = useState<BannerNoticeType>(BANNER_NOTICE_DEFAULT_TYPE);
+    const [backgroundMode, setBackgroundMode] = useState<BannerBackgroundMode>(BANNER_BACKGROUND_DEFAULT_MODE);
+    const [backgroundColor, setBackgroundColor] = useState("");
+    const [backgroundGradient, setBackgroundGradient] = useState("");
     const [titleTouched, setTitleTouched] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -87,6 +83,9 @@ export default function AdminBannerAnnouncementsPanel({
         setTitleRuns([]);
         setNoticeType(BANNER_NOTICE_DEFAULT_TYPE);
         setTitleTouched(false);
+        setBackgroundMode(BANNER_BACKGROUND_DEFAULT_MODE);
+        setBackgroundColor("");
+        setBackgroundGradient("");
         setDirty(false);
         form.resetFields();
         form.setFieldsValue({
@@ -111,6 +110,9 @@ export default function AdminBannerAnnouncementsPanel({
         setNoticeType(type);
         setTitleTouched(false);
         setDirty(false);
+        setBackgroundMode(normalizeBannerBackgroundMode(banner.backgroundMode));
+        setBackgroundColor(normalizeBannerTitleHex(banner.backgroundColor));
+        setBackgroundGradient(banner.backgroundGradient || "");
         form.setFieldsValue({
             noticeType: type,
             link: banner.link || undefined,
@@ -152,9 +154,12 @@ export default function AdminBannerAnnouncementsPanel({
         try {
             await updateAdminBanner(banner.id, {
                 title: banner.title,
-                // 必须带上样式分段与通知类型：后端更新走显式字段表，漏传会把它们清空。
+                // 必须带上样式分段、通知类型与底色：后端更新走显式字段表，漏传会把它们清空。
                 titleRuns: banner.titleRuns,
                 noticeType: normalizeBannerNoticeType(banner.noticeType),
+                backgroundMode: normalizeBannerBackgroundMode(banner.backgroundMode),
+                backgroundColor: normalizeBannerTitleHex(banner.backgroundColor),
+                backgroundGradient: normalizeBannerBackgroundGradient(banner.backgroundGradient) || undefined,
                 link: banner.link,
                 status: nextStatus ? "active" : "disabled",
                 startsAt: banner.startsAt,
@@ -189,6 +194,9 @@ export default function AdminBannerAnnouncementsPanel({
                 title: plain,
                 titleRuns: runs,
                 noticeType: selectedNoticeType,
+                backgroundMode: normalizeBannerBackgroundMode(backgroundMode),
+                backgroundColor: backgroundMode === "solid" ? normalizeBannerTitleHex(backgroundColor) : "",
+                backgroundGradient: backgroundMode === "gradient" ? normalizeBannerBackgroundGradient(backgroundGradient) || undefined : undefined,
                 link: values.link?.trim() || undefined,
                 status: (values.status ? "active" : "disabled") as "active" | "disabled",
                 sortOrder: values.sortOrder || 0,
@@ -231,16 +239,13 @@ export default function AdminBannerAnnouncementsPanel({
             ),
         },
         {
-            title: "类型",
+            title: "底色",
             key: "noticeType",
-            width: 92,
-            // 用真实底色渲染类型，和前台/预览看到的是同一个 token。
+            width: 132,
+            // 用真实底色渲染：跟随类型时是类型 token，自定义时是纯色或渐变，和前台看到的一致。
             render: (_, record) => (
-                <span
-                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[var(--fs-micro)] font-semibold text-white"
-                    style={bannerAnnouncementBarStyle(record.noticeType)}
-                >
-                    {bannerNoticeTypeLabel(record.noticeType)}
+                <span className="inline-flex max-w-full items-center rounded-full px-2 py-0.5 text-[var(--fs-micro)] font-semibold text-white" style={bannerAnnouncementBarStyle(record)}>
+                    <span className="truncate">{bannerBackgroundLabel(record)}</span>
                 </span>
             ),
         },
@@ -249,13 +254,7 @@ export default function AdminBannerAnnouncementsPanel({
             dataIndex: "status",
             key: "status",
             width: 110,
-            render: (value: string, record) => (
-                <Switch
-                    size="small"
-                    checked={value === "active"}
-                    onChange={(checked) => void handleToggleStatus(record, checked)}
-                />
-            ),
+            render: (value: string, record) => <Switch size="small" checked={value === "active"} onChange={(checked) => void handleToggleStatus(record, checked)} />,
         },
         {
             title: "有效期",
@@ -381,7 +380,7 @@ export default function AdminBannerAnnouncementsPanel({
                     onFinish={(values) => void handleSubmit(values)}
                     onValuesChange={() => setDirty(true)}
                 >
-                    <Form.Item name="noticeType" label="通知类型" extra="决定通知条底色；浅色 / 深色主题各有一档取值">
+                    <Form.Item name="noticeType" label="通知类型" extra="跟随类型时决定通知条底色；浅色 / 深色主题各有一档取值">
                         <BannerNoticeTypeSelector
                             value={noticeType}
                             onChange={(next) => {
@@ -392,17 +391,24 @@ export default function AdminBannerAnnouncementsPanel({
                         />
                     </Form.Item>
 
+                    {/* 底色不走 Form.Item：它的值是三字段组合，由组件自己回调，避免 AntD 注入单值 value/onChange。 */}
+                    <Form.Item label="通知条底色" extra="跟随类型沿用上面的类型色；也可以自定义纯色或从预设渐变里挑一个">
+                        <BannerBackgroundEditor
+                            value={{ mode: backgroundMode, color: backgroundColor, gradient: backgroundGradient }}
+                            onChange={(next) => {
+                                setBackgroundMode(normalizeBannerBackgroundMode(next.mode));
+                                setBackgroundColor(next.color);
+                                setBackgroundGradient(next.gradient);
+                                setDirty(true);
+                            }}
+                        />
+                    </Form.Item>
+
                     <Form.Item
                         label="通知标题"
                         required
                         validateStatus={titleMissing || titleTooLong ? "error" : undefined}
-                        help={
-                            titleMissing
-                                ? "请输入常驻通知标题"
-                                : titleTooLong
-                                  ? `已超出 ${BANNER_TITLE_MAX_CHARS} 个字符上限`
-                                  : "支持按选区设置字号、字重、字体与颜色，用「图标」插入 emoji 素材；标题在通知条内固定单行展示"
-                        }
+                        help={titleMissing ? "请输入常驻通知标题" : titleTooLong ? `已超出 ${BANNER_TITLE_MAX_CHARS} 个字符上限` : "支持按选区设置字号、字重、字体与颜色，用「图标」插入 emoji 素材；标题在通知条内固定单行展示"}
                     >
                         <BannerTitleEditor
                             key={dialog?.mode === "edit" ? dialog.banner.id : "create"}
@@ -417,15 +423,10 @@ export default function AdminBannerAnnouncementsPanel({
                     {/* 预览放在 Form 内但不用 Form.Item：避免 AntD 向非表单控件注入 value/onChange/ref。 */}
                     <div className="mb-6">
                         <div className="mb-2 text-sm text-foreground/85">前台效果预览</div>
-                        <BannerNoticePreview runs={titleRuns} hasLink={Boolean(linkValue?.trim())} noticeType={noticeType} />
+                        <BannerNoticePreview runs={titleRuns} hasLink={Boolean(linkValue?.trim())} noticeType={noticeType} backgroundMode={backgroundMode} backgroundColor={backgroundColor} backgroundGradient={backgroundGradient} />
                     </div>
 
-                    <Form.Item
-                        name="link"
-                        label="跳转链接（可选）"
-                        extra="支持 https:// 外链或以 / 开头的站内路径（如 /projects）；留空表示不可点击"
-                        rules={[{ max: 500, message: "链接最多 500 字符" }]}
-                    >
+                    <Form.Item name="link" label="跳转链接（可选）" extra="支持 https:// 外链或以 / 开头的站内路径（如 /projects）；留空表示不可点击" rules={[{ max: 500, message: "链接最多 500 字符" }]}>
                         <Input maxLength={500} placeholder="https://… 或 /projects" />
                     </Form.Item>
 

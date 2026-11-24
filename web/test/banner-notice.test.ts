@@ -1,13 +1,22 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+    BANNER_BACKGROUND_DEFAULT_MODE,
+    BANNER_BACKGROUND_GRADIENT_VALUES,
+    BANNER_BACKGROUND_GRADIENTS,
+    BANNER_BACKGROUND_MODE_VALUES,
     BANNER_NOTICE_DEFAULT_TYPE,
     BANNER_NOTICE_EMOJI_GROUPS,
     BANNER_NOTICE_EMOJIS,
     BANNER_NOTICE_TYPE_VALUES,
     BANNER_NOTICE_TYPES,
+    bannerBackgroundGradientCSS,
+    bannerBackgroundGradientReferenceColor,
+    bannerBackgroundLabel,
     bannerNoticeSurfaceCSS,
     bannerNoticeTypeLabel,
+    normalizeBannerBackgroundGradient,
+    normalizeBannerBackgroundMode,
     normalizeBannerNoticeType,
     searchBannerNoticeEmojis,
 } from "@/lib/announcements/banner-notice";
@@ -80,11 +89,7 @@ describe("emoji 图标素材库", () => {
     test("emoji 是普通文本：标题纯文本拼接函数必须原样保留它", async () => {
         // 防止未来有人给 run.text 做字符过滤，把 emoji 丢掉。
         const { bannerTitlePlainText } = await import("@/lib/announcements/banner-title");
-        const runs = [
-            { text: "🔥", fontSize: 20 },
-            { text: "限时", color: "#FFE58F" },
-            { text: "大促" },
-        ];
+        const runs = [{ text: "🔥", fontSize: 20 }, { text: "限时", color: "#FFE58F" }, { text: "大促" }];
         expect(bannerTitlePlainText(runs as never)).toBe("🔥限时大促");
     });
 });
@@ -101,11 +106,7 @@ describe("与后端白名单保持一致", () => {
     });
 
     test("后端不保存独立图标字段：emoji 必须内嵌在标题分段里", async () => {
-        const [goModel, goApp, goRepo] = await Promise.all([
-            readSource("../../backend/internal/model/models_project.go"),
-            readSource("../../backend/internal/app/announcement.go"),
-            readSource("../../backend/internal/repository/announcement.go"),
-        ]);
+        const [goModel, goApp, goRepo] = await Promise.all([readSource("../../backend/internal/model/models_project.go"), readSource("../../backend/internal/app/announcement.go"), readSource("../../backend/internal/repository/announcement.go")]);
         // 防止 icon 字段被加回来却没人维护白名单：图标的存储形态就是 TitleRuns 的文本。
         expect(goModel).not.toMatch(/\bIcon\s+string/);
         expect(goApp).not.toContain("normalizeBannerIcon");
@@ -143,5 +144,72 @@ describe("通知条主题色", () => {
             expect(adminUi).toContain(`--${name}: var(--palette-banner-${type.key}-500)`);
             expect(adminUi).toContain(`--${name}: var(--palette-banner-${type.key}-700)`);
         }
+    });
+});
+
+describe("通知条底色", () => {
+    test("未知或空模式回落到跟随类型", () => {
+        expect(normalizeBannerBackgroundMode(undefined)).toBe(BANNER_BACKGROUND_DEFAULT_MODE);
+        expect(normalizeBannerBackgroundMode("")).toBe(BANNER_BACKGROUND_DEFAULT_MODE);
+        expect(normalizeBannerBackgroundMode("rainbow")).toBe(BANNER_BACKGROUND_DEFAULT_MODE);
+        expect(normalizeBannerBackgroundMode(" GRADIENT ")).toBe("gradient");
+    });
+
+    test("渐变键清洗：大小写无关，未知键给空串", () => {
+        expect(normalizeBannerBackgroundGradient(" Aurora ")).toBe("aurora");
+        expect(normalizeBannerBackgroundGradient("rainbow")).toBe("");
+        expect(normalizeBannerBackgroundGradient(undefined)).toBe("");
+    });
+
+    test("每个渐变都有中文名、可渲染的 CSS 与唯一键", () => {
+        const keys = BANNER_BACKGROUND_GRADIENT_VALUES;
+        expect(new Set(keys).size).toBe(keys.length);
+        expect(keys.length).toBeGreaterThanOrEqual(6);
+        for (const preset of BANNER_BACKGROUND_GRADIENTS) {
+            expect(preset.label.trim().length).toBeGreaterThan(0);
+            expect(bannerBackgroundGradientCSS(preset.key)).toContain("linear-gradient(90deg");
+            // 未知键不返回半截 CSS，调用方据此回落到类型底色。
+            expect(bannerBackgroundGradientCSS("rainbow")).toBe("");
+        }
+    });
+
+    test("渐变曲线：两端起笔快、中间留亮色平台", () => {
+        const css = bannerBackgroundGradientCSS("crimson");
+        // 深色起 → 26% 就到亮色 → 74% 前保持亮色 → 回落同一深色：整条每一段都在变色。
+        expect(css.startsWith("linear-gradient(90deg, #991B1B 0%")).toBe(true);
+        expect(css).toContain("#BE185D 26%");
+        expect(css).toContain("#BE185D 74%");
+        expect(css.endsWith("#991B1B 100%)")).toBe(true);
+        // 停靠点必须单调递增，否则浏览器会把色标纠正成反向渐变。
+        const positions = Array.from(css.matchAll(/(\d+)%/g)).map((match) => Number(match[1]));
+        expect(positions[0]).toBe(0);
+        expect(positions[positions.length - 1]).toBe(100);
+        expect(positions).toEqual([...positions].sort((left, right) => left - right));
+        // 中间平台就是对比度参考色，白字在这里最吃力。
+        expect(bannerBackgroundGradientReferenceColor("crimson")).toBe("#BE185D");
+    });
+
+    test("浅色底会让白字不可读，所以预设色标必须撑住白字 4.5:1", () => {
+        for (const preset of BANNER_BACKGROUND_GRADIENTS) {
+            expect(bannerTitleContrastRatio("#FFFFFF", preset.from)).toBeGreaterThanOrEqual(4.5);
+            expect(bannerTitleContrastRatio("#FFFFFF", preset.to)).toBeGreaterThanOrEqual(4.5);
+            // 中点是后台对比度提示用的参考色，同样得站得住。
+            expect(bannerBackgroundGradientReferenceColor(preset.key)).toMatch(/^#[0-9A-F]{6}$/);
+        }
+        expect(bannerBackgroundGradientReferenceColor("rainbow")).toBe("");
+    });
+
+    test("底色说明与后端白名单都跟着模式走", async () => {
+        const goSource = await readSource("../../backend/internal/app/announcement.go");
+        // 双向校验：后端多一项会让前端选中的值被拒，少一项会让后台选项存不进去。
+        expect(new Set(goMapKeys(goSource, "bannerBackgroundModes"))).toEqual(new Set(BANNER_BACKGROUND_MODE_VALUES));
+        expect(new Set(goMapKeys(goSource, "bannerBackgroundGradients"))).toEqual(new Set(BANNER_BACKGROUND_GRADIENT_VALUES));
+        expect(goSource).toContain(`bannerBackgroundDefaultMode = "${BANNER_BACKGROUND_DEFAULT_MODE}"`);
+
+        expect(bannerBackgroundLabel({ noticeType: "activity", backgroundMode: "type" })).toBe("活动 · 类型色");
+        expect(bannerBackgroundLabel({ backgroundMode: "solid", backgroundColor: "#4338ca" })).toBe("自定义颜色 #4338CA");
+        expect(bannerBackgroundLabel({ backgroundMode: "gradient", backgroundGradient: "aurora" })).toBe("渐变 · 极光");
+        // 脏数据：模式是渐变但键不合法 → 明说未选择，不假装有底色。
+        expect(bannerBackgroundLabel({ backgroundMode: "gradient", backgroundGradient: "rainbow" })).toBe("渐变 · 未选择");
     });
 });

@@ -1,8 +1,8 @@
 import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { bannerNoticeSurfaceCSS } from "@/lib/announcements/banner-notice";
-import { bannerTitleRunStyle, type BannerTitleRun } from "@/lib/announcements/banner-title";
+import { bannerBackgroundGradientCSS, bannerBackgroundGradientReferenceColor, bannerNoticeSurfaceCSS, normalizeBannerBackgroundMode, readBannerNoticeSurface } from "@/lib/announcements/banner-notice";
+import { bannerTitleRunStyle, normalizeBannerTitleHex, type BannerTitleRun } from "@/lib/announcements/banner-title";
 
 /**
  * 通知条的展示单元：底色、富文本标题、详情入口。
@@ -12,9 +12,43 @@ import { bannerTitleRunStyle, type BannerTitleRun } from "@/lib/announcements/ba
  * 图标素材（emoji）是标题文本的一部分，随 BannerAnnouncementTitle 一起渲染，这里不单独处理。
  */
 
-/** 通知条底色：由通知类型决定，明暗两档交给 token 在各自主题下解析，组件不感知主题。 */
-export function bannerAnnouncementBarStyle(noticeType?: string | null) {
-    return { backgroundColor: bannerNoticeSurfaceCSS(noticeType) };
+/** 决定通知条底色的字段集合：模式 + 该模式下生效的一个取值。 */
+export type BannerBackgroundSource = {
+    noticeType?: string | null;
+    backgroundMode?: string | null;
+    backgroundColor?: string | null;
+    backgroundGradient?: string | null;
+};
+
+/**
+ * 通知条底色：跟随类型时用类型 token（明暗各一档），自定义时用纯色或预设渐变。
+ * 模式里的取值不合法（脏数据 / 旧记录）时回落到类型底色，通知条不会渲染成透明条。
+ */
+export function bannerAnnouncementBarStyle(source: BannerBackgroundSource) {
+    const mode = normalizeBannerBackgroundMode(source.backgroundMode);
+    if (mode === "solid") {
+        const color = normalizeBannerTitleHex(source.backgroundColor || "");
+        if (color) return { backgroundColor: color };
+    }
+    if (mode === "gradient") {
+        const gradient = bannerBackgroundGradientCSS(source.backgroundGradient);
+        if (gradient) return { backgroundImage: gradient };
+    }
+    return { backgroundColor: bannerNoticeSurfaceCSS(source.noticeType) };
+}
+
+/** 底色的「参考色」：标题对比度提示用它计算，纯色与渐变都给出确定取值。 */
+export function bannerAnnouncementBackgroundReference(source: BannerBackgroundSource, scope?: HTMLElement | null) {
+    const mode = normalizeBannerBackgroundMode(source.backgroundMode);
+    if (mode === "solid") {
+        const color = normalizeBannerTitleHex(source.backgroundColor || "");
+        if (color) return color;
+    }
+    if (mode === "gradient") {
+        const color = bannerBackgroundGradientReferenceColor(source.backgroundGradient);
+        if (color) return color;
+    }
+    return readBannerNoticeSurface(source.noticeType, scope);
 }
 
 /** 「详情 ›」入口；仅在通知可点击时由调用方渲染。 */
@@ -41,11 +75,7 @@ export function BannerAnnouncementTitle({ runs, fallbackText }: { runs?: BannerT
             {runs.map((run, index) => {
                 const style = bannerTitleRunStyle(run);
                 return (
-                    <span
-                        key={`${index}:${run.text}`}
-                        style={style}
-                        className={!run.color ? "text-white" : undefined}
-                    >
+                    <span key={`${index}:${run.text}`} style={style} className={!run.color ? "text-white" : undefined}>
                         {run.text}
                     </span>
                 );

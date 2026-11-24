@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const CurrentSchemaVersion int64 = 111
+const CurrentSchemaVersion int64 = 112
 
 const baselineSchemaChecksum = "sha256:open-ai-canvas-schema-v1-20260830"
 const schemaMigrationAppliedAtIndexChecksum = "sha256:schema-migrations-applied-at-index-v2-20260830"
@@ -400,6 +400,18 @@ var schemaMigrations = []migration{
 	}},
 	{version: showcaseWorksMigrationVersion, name: showcaseWorksMigrationName, checksum: showcaseWorksMigrationChecksum, apply: func(tx *gorm.DB) error {
 		return tx.AutoMigrate(&model.ShowcaseCategory{}, &model.ShowcaseWork{})
+	}},
+	{version: 112, name: "banner_background_style", checksum: "sha256:banner-background-style-v112", apply: func(tx *gorm.DB) error {
+		// 常驻通知条的自定义底色：来源模式、纯色值、渐变预设键。旧记录留空即沿用通知类型的主题色。
+		for _, column := range []string{"BackgroundMode", "BackgroundColor", "BackgroundGradient"} {
+			if tx.Migrator().HasColumn(&model.BannerAnnouncement{}, column) {
+				continue
+			}
+			if err := tx.Migrator().AddColumn(&model.BannerAnnouncement{}, column); err != nil {
+				return err
+			}
+		}
+		return nil
 	}},
 }
 
