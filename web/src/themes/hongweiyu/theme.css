@@ -98,11 +98,15 @@
     background-image: none;
 }
 
-/* 只在创作首页收掉顶栏：面包屑对首页没有信息价值，让主区顶到窗口顶部。
+/* 只在创作首页的空态收掉顶栏：面包屑对首页没有信息价值，让主区顶到窗口顶部。
    必须用 :has(.creation-home) 限定作用域——否则画布、资产等页面的顶栏也会塌掉，
    它们的新建/导入按钮就会堆到右上角和浮动入口重叠。
-   右上角操作组（积分/充值/通知/头像）保留为浮动入口，否则这些功能没有落点。 */
-:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar {
+   右上角操作组（积分/充值/通知/头像）保留为浮动入口，否则这些功能没有落点。
+   会话视图例外：创作端会把镜头时间线工具栏 portal 进顶栏（.creation-thread-toolbar），
+   顶栏高度归零后这个工具栏按 align-items: center 半高溢出到窗口顶部被裁掉，
+   右侧「画布中继续/新建创作/历史对话」还会钻到积分浮动组下面，
+   所以顶栏里已经装了工具栏时保持正常高度和常规布局。 */
+:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar:not(:has(.creation-thread-toolbar)) {
     height: 0 !important;
     min-height: 0 !important;
     padding: 0 !important;
@@ -114,7 +118,7 @@
 /* 窄屏的移动端菜单按钮原本在顶栏左侧，顶栏归零后会溢出到窗口外，改成固定在左上角。
    顶部常驻通知条是布局流里的第一行，fixed 定位不会跟着它下移，用 --notice-banner-height 补偿。 */
 @media (max-width: 1024px) {
-    :root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-mobile-menu {
+    :root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar:not(:has(.creation-thread-toolbar)) .app-workspace-mobile-menu {
         position: fixed;
         top: calc(8px + var(--notice-banner-height, 0px));
         left: 8px;
@@ -134,7 +138,7 @@
 }
 
 /* 通知条在布局流最上方占位，这里同样是 fixed，必须按通知条高度下移，否则会盖住通知标题。 */
-:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar-actions {
+:root[data-skin="hongweiyu"] .app-user-workspace:has(.creation-home) .app-workspace-topbar:not(:has(.creation-thread-toolbar)) .app-workspace-topbar-actions {
     position: fixed;
     top: calc(10px + var(--notice-banner-height, 0px));
     right: 18px;
