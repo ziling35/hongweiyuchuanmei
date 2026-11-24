@@ -129,6 +129,7 @@ docker compose --env-file .env -f docker-compose.deploy.yml exec -T postgres \
 2. 不要修改已存在的数据库迁移文件（按名称 + checksum 校验，改动会导致 `migrate-schema up` 失败），需要改 schema 就新增迁移
 3. 不要修改 `.github/workflows/quality.yml` 里 job 的 `name`，发布流程靠这些检查名判定是否放行
 4. 能做成插件的定制就放到 `plugin-packages/`（参考现有 `.yingce-plugin` 包），不改核心代码，这类改动永远不会和上游冲突
+5. 上游和 fork 同时占用了同一个迁移版本号时，不许改上游那条迁移：把 fork 的迁移改成下一个空号（并同步 `CurrentSchemaVersion`），再在 `MigrateSchema` 里加一条账本归一化，把旧号记录改写成新号（参考 `normalizeForkShowcaseMigration`），否则已有数据库升级时会被名称/校验和校验拒绝启动
 
 ## 8. 与官方更新器的关系
 

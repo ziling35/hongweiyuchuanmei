@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const CurrentSchemaVersion int64 = 110
+const CurrentSchemaVersion int64 = 111
 
 const baselineSchemaChecksum = "sha256:open-ai-canvas-schema-v1-20260830"
 const schemaMigrationAppliedAtIndexChecksum = "sha256:schema-migrations-applied-at-index-v2-20260830"
@@ -392,7 +392,13 @@ var schemaMigrations = []migration{
 		}
 		return tx.Migrator().CreateIndex(&model.ChannelModel{}, "ProtocolRelease")
 	}},
-	{version: 110, name: "showcase_works", checksum: "sha256:showcase-works-v110", apply: func(tx *gorm.DB) error {
+	{version: 110, name: "cloud_agent_history_archives", checksum: "sha256:cloud-agent-history-archives-v110-20261123", apply: func(tx *gorm.DB) error {
+		if err := tx.AutoMigrate(&model.CloudAgentExecution{}, &model.CloudAgentHistoryArchive{}); err != nil {
+			return err
+		}
+		return reconcileAgentStorageUsage(tx)
+	}},
+	{version: showcaseWorksMigrationVersion, name: showcaseWorksMigrationName, checksum: showcaseWorksMigrationChecksum, apply: func(tx *gorm.DB) error {
 		return tx.AutoMigrate(&model.ShowcaseCategory{}, &model.ShowcaseWork{})
 	}},
 }
@@ -1247,6 +1253,52 @@ func normalizeLegacyWorkbenchMigration(tx *gorm.DB) error {
 	return nil
 }
 
+// fork 与上游同时占用迁移版本 110 后的账本身份：fork 的 showcase_works 让到 111，
+// 上游把 110 用于 cloud_agent_history_archives。旧账本按 legacy 常量识别并改写。
+const (
+	showcaseWorksMigrationVersion        int64 = 111
+	showcaseWorksMigrationName                 = "showcase_works"
+	showcaseWorksMigrationChecksum             = "sha256:showcase-works-v111"
+	legacyShowcaseWorksMigrationVersion  int64 = 110
+	legacyShowcaseWorksMigrationChecksum       = "sha256:showcase-works-v110"
+)
+
+// normalizeForkShowcaseMigration 把仍停在版本 110 的 fork showcase 账本改写到 111，
+// 让上游的 110 能按原编号补跑，避免升级时因版本冲突拒绝启动。
+func normalizeForkShowcaseMigration(tx *gorm.DB) error {
+	var record schemaMigration
+	err := tx.First(&record, "version = ?", legacyShowcaseWorksMigrationVersion).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("读取 showcase 迁移记录：%w", err)
+	}
+	if record.Name != showcaseWorksMigrationName || record.Checksum != legacyShowcaseWorksMigrationChecksum {
+		return nil
+	}
+	var later int64
+	if err := tx.Model(&schemaMigration{}).Where("version > ?", legacyShowcaseWorksMigrationVersion).Count(&later).Error; err != nil {
+		return fmt.Errorf("统计 showcase 迁移之后的记录：%w", err)
+	}
+	if later > 0 {
+		return fmt.Errorf("数据库迁移 110 记录为 fork 的 showcase_works，但已存在后续迁移记录；拒绝自动改写迁移账本")
+	}
+	result := tx.Model(&schemaMigration{}).
+		Where("version = ? AND name = ? AND checksum = ?", legacyShowcaseWorksMigrationVersion, showcaseWorksMigrationName, legacyShowcaseWorksMigrationChecksum).
+		Updates(map[string]any{
+			"version":  showcaseWorksMigrationVersion,
+			"checksum": showcaseWorksMigrationChecksum,
+		})
+	if result.Error != nil {
+		return fmt.Errorf("归一化 fork showcase 迁移记录：%w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("归一化 fork showcase 迁移记录影响 %d 行，拒绝继续启动", result.RowsAffected)
+	}
+	return nil
+}
+
 const workbenchToolsMigrationVersion int64 = 54
 
 func migrateSchemaV56(tx *gorm.DB) error {
@@ -1281,6 +1333,9 @@ func MigrateSchema(db *gorm.DB) error {
 			return err
 		}
 		if err := normalizeLegacyWorkbenchMigration(tx); err != nil {
+			return err
+		}
+		if err := normalizeForkShowcaseMigration(tx); err != nil {
 			return err
 		}
 		plan, err := migrationsForDatabase(tx)
