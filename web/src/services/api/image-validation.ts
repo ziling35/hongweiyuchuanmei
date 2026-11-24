@@ -123,15 +123,19 @@ export function resolveImageRequestSize(profile: ImageCapabilityConfig, quality:
         }
     }
     const dimensions = parseImageDimensions(request.value);
-    // 模型声明的精确预设（如 1920x1080）不应被自定义尺寸的 16 像素对齐规则拒绝。
-    if (request.parameter === "size" && dimensions && profile.size.values.includes(request.value)) {
+    // 模型声明的精确预设（如 1920x1080）不应被自定义尺寸的 16 像素对齐规则拒绝；
+    // 管理员在「配置画幅与精确像素」里显式配置的预设像素同样豁免。
+    const presetSize =
+        request.parameter === "size" && dimensions
+            ? profile.size.presets?.some((preset) => preset.size === request.value)
+            : false;
+    if (request.parameter === "size" && dimensions && (presetSize || profile.size.values.includes(request.value))) {
         validateImageSize(dimensions.width, dimensions.height, false);
         return request;
     }
     const value = request.parameter === "size" ? resolveRequestSize(quality, request.value) : resolveAspectRatio(request.value);
     return value ? { parameter: request.parameter, value } : undefined;
 }
-
 export function validateImageCapability(profile: ImageCapabilityConfig, references: ReferenceImage[], mask?: ReferenceImage) {
     if (references.length > profile.references.maxImages) throw new Error(`当前图片模型最多支持 ${profile.references.maxImages} 张参考图`);
     if (mask && !profile.references.maskSupported) throw new Error("当前图片模型不支持蒙版编辑");
