@@ -403,6 +403,11 @@ var schemaMigrations = []migration{
 	}},
 	{version: 112, name: "banner_background_style", checksum: "sha256:banner-background-style-v112", apply: func(tx *gorm.DB) error {
 		// 常驻通知条的自定义底色：来源模式、纯色值、渐变预设键。旧记录留空即沿用通知类型的主题色。
+		// 迁移用例会构造只含部分表的旧库（如 v96/v99 升级路径），表不存在时无列可加，直接跳过——
+		// 与版本 109 同一写法，否则 AddColumn 会以 "no such table: banner_announcements" 中断迁移。
+		if !tx.Migrator().HasTable(&model.BannerAnnouncement{}) {
+			return nil
+		}
 		for _, column := range []string{"BackgroundMode", "BackgroundColor", "BackgroundGradient"} {
 			if tx.Migrator().HasColumn(&model.BannerAnnouncement{}, column) {
 				continue

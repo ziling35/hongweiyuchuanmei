@@ -24,8 +24,10 @@ func forkShowcaseLedgerDatabase(t *testing.T) *gorm.DB {
 	if err := MigrateSchema(db); err != nil {
 		t.Fatal(err)
 	}
-	// 回到 fork 合并上游之前的状态：110 是 showcase_works，账本里没有 111。
-	if err := db.Exec("DELETE FROM schema_migrations WHERE version = ?", showcaseWorksMigrationVersion).Error; err != nil {
+	// 回到 fork 合并上游之前的状态：110 是 showcase_works，账本里没有任何更晚的记录。
+	// 不能只删 111——新增迁移（如 112 banner_background_style）后，残留的更晚记录会被
+	// normalizeForkShowcaseMigration 判成「已存在后续迁移」，与真实的历史现场不符。
+	if err := db.Exec("DELETE FROM schema_migrations WHERE version > ?", legacyShowcaseWorksMigrationVersion).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Model(&schemaMigration{}).
