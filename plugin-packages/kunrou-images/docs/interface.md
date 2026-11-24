@@ -147,7 +147,10 @@
             "type": "string",
             "binding": "aspectRatio",
             "encoding": "pixels",
-            "pricing": true
+            "pricing": true,
+            "step": 1,
+            "min": 262144,
+            "max": 8294400
           },
           {
             "name": "imageResolution",
