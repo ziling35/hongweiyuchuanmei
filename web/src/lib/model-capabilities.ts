@@ -808,3 +808,25 @@ export function videoDurationAllowed(profile: VideoCapabilityConfig, value: numb
     const step = profile.duration.step || 1;
     return value >= min && value <= max && (value - min) % step === 0;
 }
+
+/** 时长范围档只需覆盖至少一个模型支持的时长，否则是永远无法命中的死档。 */
+export function videoDurationRangeAllowed(profile: VideoCapabilityConfig, min: number, max: number) {
+    return videoDurationOptions(profile).some((value) => value >= min && value <= max);
+}
+
+/**
+ * 价格档 selector.videoSeconds 的取值格式："N" 表示固定秒数，"N-M" 表示闭区间，
+ * 缺省或 0 表示任意时长。与后端 parseVideoSecondsSelector 保持同一口径。
+ */
+export function parseVideoSecondsSelectorValue(value: unknown): { min: number; max: number } | null {
+    const raw = String(value ?? "").trim();
+    const match = /^(\d+)-(\d+)$/.exec(raw);
+    if (match) {
+        const min = Number(match[1]);
+        const max = Number(match[2]);
+        return min > 0 && max >= min ? { min, max } : null;
+    }
+    if (!/^\d+$/.test(raw)) return null;
+    const seconds = Number(raw);
+    return seconds > 0 ? { min: seconds, max: seconds } : null;
+}

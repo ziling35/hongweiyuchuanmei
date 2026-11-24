@@ -13,6 +13,82 @@ import (
 	protocolcontract "yingce/backend/internal/protocol"
 )
 
+// parseVideoSecondsSelector 解析价格档时长条件："N" 表示固定秒数，"N-M" 表示闭区间，
+// 与请求侧的精确秒数在同一选择器协议下并存；空值和 0 由调用方按“任意时长”处理。
+func parseVideoSecondsSelector(value string) (low int, high int, ok bool) {
+	value = strings.TrimSpace(value)
+	if dash := strings.IndexByte(value, '-'); dash >= 0 {
+		low, lowErr := strconv.Atoi(strings.TrimSpace(value[:dash]))
+		high, highErr := strconv.Atoi(strings.TrimSpace(value[dash+1:]))
+		if lowErr != nil || highErr != nil || low <= 0 || high < low {
+			return 0, 0, false
+		}
+		return low, high, true
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds <= 0 {
+		return 0, 0, false
+	}
+	return seconds, seconds, true
+}
+
+// videoDurationRangeCovered 要求时长区间档至少覆盖一个模型支持的时长，
+// 避免保存永远无法命中的死档；enum 按枚举值判断，range 按 step 对齐交集判断。
+func videoDurationRangeCovered(video *VideoCapabilityConfig, low int, high int, enumValues map[int]bool) bool {
+	if video.Duration.Selection == "enum" {
+		for seconds := range enumValues {
+			if seconds >= low && seconds <= high {
+				return true
+			}
+		}
+		return false
+	}
+	min, max, step := video.Duration.Min, video.Duration.Max, video.Duration.Step
+	if step <= 0 {
+		step = 1
+	}
+	first := low
+	if first < min {
+		first = min
+	}
+	if remainder := (first - min) % step; remainder != 0 {
+		first += step - remainder
+	}
+	return first >= min && first <= high && first <= max
+}
+
+// durationTierSelectorsConflict 判断两个价格档是否会以同一优先级命中同一时长请求：
+// 选择器条件集合相同、非时长条件相等，且两个时长约束（精确或区间）有交集。
+func durationTierSelectorsConflict(a map[string]string, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	hasDuration := false
+	for key, valueA := range a {
+		valueB, exists := b[key]
+		if !exists {
+			return false
+		}
+		if key == "videoSeconds" {
+			hasDuration = true
+			continue
+		}
+		if valueA != valueB {
+			return false
+		}
+	}
+	if !hasDuration {
+		// 完全相同的选择器已由 selector_key 去重拦截；这里只处理时长条件差异。
+		return false
+	}
+	lowA, highA, okA := parseVideoSecondsSelector(a["videoSeconds"])
+	lowB, highB, okB := parseVideoSecondsSelector(b["videoSeconds"])
+	if !okA || !okB {
+		return false
+	}
+	return lowA <= highB && lowB <= highA
+}
+
 func validateChannelModelTierCapabilities(tiers []model.ChannelModelPriceTier, rawCapabilityConfig string, capability string, protocol string) error {
 	if capability == "image" {
 		config, err := DecodeModelCapabilityConfig(rawCapabilityConfig)
@@ -73,17 +149,28 @@ func validateChannelModelTierCapabilities(tiers []model.ChannelModelPriceTier, r
 		if tier.Resolution != "*" && !resolutionSupported[normalizeChannelModelTierResolution(tier.Resolution)] {
 			return BadAuthRequest("价格档分辨率不在该视频模型支持范围内：" + tier.Resolution)
 		}
-		if tier.VideoSeconds == 0 {
+		raw := strings.TrimSpace(tier.Selector["videoSeconds"])
+		if raw == "" {
+			raw = strconv.Itoa(tier.VideoSeconds)
+		}
+		low, high, hasDuration := parseVideoSecondsSelector(raw)
+		if !hasDuration {
 			continue
 		}
 		if !videoDurationSupported(config.Video) {
 			continue
 		}
-		if config.Video.Duration.Selection == "enum" && !durationSupported[tier.VideoSeconds] {
-			return BadAuthRequest(fmt.Sprintf("价格档时长 %d 秒不在该视频模型支持范围内", tier.VideoSeconds))
+		if low == high {
+			if config.Video.Duration.Selection == "enum" && !durationSupported[low] {
+				return BadAuthRequest(fmt.Sprintf("价格档时长 %d 秒不在该视频模型支持范围内", low))
+			}
+			if config.Video.Duration.Selection == "range" && (low < config.Video.Duration.Min || low > config.Video.Duration.Max || (config.Video.Duration.Step > 0 && (low-config.Video.Duration.Min)%config.Video.Duration.Step != 0)) {
+				return BadAuthRequest(fmt.Sprintf("价格档时长 %d 秒不在该视频模型支持范围内", low))
+			}
+			continue
 		}
-		if config.Video.Duration.Selection == "range" && (tier.VideoSeconds < config.Video.Duration.Min || tier.VideoSeconds > config.Video.Duration.Max || (config.Video.Duration.Step > 0 && (tier.VideoSeconds-config.Video.Duration.Min)%config.Video.Duration.Step != 0)) {
-			return BadAuthRequest(fmt.Sprintf("价格档时长 %d 秒不在该视频模型支持范围内", tier.VideoSeconds))
+		if !videoDurationRangeCovered(config.Video, low, high, durationSupported) {
+			return BadAuthRequest(fmt.Sprintf("价格档时长范围 %d-%d 秒未覆盖该视频模型支持的时长", low, high))
 		}
 	}
 	return nil
@@ -178,6 +265,15 @@ func normalizeChannelModelPriceTiersWithIDs(req ChannelModelRequest, capability 
 			Enabled:         enabled,
 			PriceVersion:    1,
 		})
+	}
+	// 同优先级时长区间不得相交：其他条件完全相同的两个档同时命中同一请求时，
+	// 命中结果取决于档位顺序，属于配置歧义，与前端 priceSelectorIssues 同口径拦截。
+	for index := range result {
+		for previous := range result[:index] {
+			if durationTierSelectorsConflict(result[previous].Selector, result[index].Selector) {
+				return nil, BadAuthRequest(fmt.Sprintf("价格档 %d 与 %d 的时长范围重叠，请调整时长区间", previous+1, index+1))
+			}
+		}
 	}
 	return result, nil
 }
@@ -298,14 +394,18 @@ func normalizeChannelModelTierSelector(capability string, input ChannelModelPric
 			key = "resolution"
 			value = strings.ToLower(strings.TrimSpace(value))
 		case "videoSeconds":
-			seconds, err := strconv.Atoi(value)
-			if err != nil || seconds < 0 {
-				return nil, "", 0, BadAuthRequest("视频价格档时长必须是非负整数")
-			}
-			if seconds == 0 {
+			if seconds, err := strconv.Atoi(value); err == nil && seconds == 0 {
 				continue
 			}
-			value = strconv.Itoa(seconds)
+			low, high, ok := parseVideoSecondsSelector(value)
+			if !ok {
+				return nil, "", 0, BadAuthRequest("视频价格档时长必须是正整数或 N-M 秒区间")
+			}
+			if low == high {
+				value = strconv.Itoa(low)
+			} else {
+				value = fmt.Sprintf("%d-%d", low, high)
+			}
 		case "imageCount":
 			count, err := strconv.Atoi(value)
 			if err != nil || count < 0 {
@@ -382,9 +482,12 @@ func normalizeChannelModelTierSelector(capability string, input ChannelModelPric
 	if value := selector["vquality"]; value != "" {
 		resolution = value
 	}
+	// 旧列只作回显兜底：区间档存下限，任意时长档存 0。
 	videoSeconds := 0
 	if value := selector["videoSeconds"]; value != "" {
-		videoSeconds, _ = strconv.Atoi(value)
+		if low, _, ok := parseVideoSecondsSelector(value); ok {
+			videoSeconds = low
+		}
 	}
 	return selector, resolution, videoSeconds, nil
 }

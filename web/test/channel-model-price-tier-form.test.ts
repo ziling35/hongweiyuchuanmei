@@ -39,7 +39,7 @@ describe("channel model price tier defaults", () => {
     });
 
     test("drops stale video selectors after switching back to the default price", () => {
-        const tier = { ...defaultPriceTier("advanced"), resolution: "1080p", videoSeconds: 10, videoGenerateAudio: "false", imageCount: 2 };
+        const tier = { ...defaultPriceTier("advanced"), resolution: "1080p", videoSecondsMin: 10, videoSecondsMax: 10, videoGenerateAudio: "false", imageCount: 2 };
         const defaultTier = { ...tier, matchMode: "default" as const };
 
         expect(skuSelectorFromForm("video", defaultTier)).toEqual({});
@@ -75,12 +75,13 @@ describe("channel model price tier defaults", () => {
 
     test("keeps video matching to operation, resolution and duration", () => {
         for (const videoGenerateAudio of ["true", "false"]) {
-            const tier = { ...defaultPriceTier("advanced"), operation: "image_to_video", resolution: "1080p", videoSeconds: 10, videoGenerateAudio, imageCount: 2 };
-            // 生成时长现在会写进选择器，后端按 selector.videoSeconds 精确匹配价格档。
+            const tier = { ...defaultPriceTier("advanced"), operation: "image_to_video", resolution: "1080p", videoSecondsMin: 10, videoSecondsMax: 10, videoGenerateAudio, imageCount: 2 };
+            // 相等边界写固定秒数，区间边界写 "N-M"，后端按数值范围匹配价格档。
             expect(skuSelectorFromForm("video", tier)).toEqual({ operation: "image_to_video", vquality: "1080p", videoSeconds: "10" });
+            expect(skuSelectorFromForm("video", { ...tier, videoSecondsMin: 5, videoSecondsMax: 10 })).toMatchObject({ videoSeconds: "5-10" });
             expect(priceTierVideoSecondsFromForm("video", tier)).toBe(10);
             // 非视频能力不写时长选择器。
-            expect(skuSelectorFromForm("image", { ...defaultPriceTier("advanced"), videoSeconds: 10, videoGenerateAudio, imageCount: 2 })).toEqual({});
+            expect(skuSelectorFromForm("image", { ...defaultPriceTier("advanced"), videoSecondsMin: 10, videoSecondsMax: 10, videoGenerateAudio, imageCount: 2 })).toEqual({});
         }
         expect(skuSelectorFromForm("video", defaultPriceTier("advanced"))).toEqual({});
         expect(priceTierVideoSecondsFromForm("video", defaultPriceTier("advanced"))).toBe(0);

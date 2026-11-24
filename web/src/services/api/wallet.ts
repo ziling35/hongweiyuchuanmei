@@ -111,9 +111,11 @@ export type ChannelModelPriceTier = {
     costPricing?: CreditCostPricing;
     id: string;
     channelModelId: string;
+    /** 规格选择器；videoSeconds 取 "N"（固定秒数）或 "N-M"（闭区间），缺省表示任意时长。 */
     selector: Record<string, string>;
     selectorKey: string;
     resolution: string;
+    /** 旧列，仅作回显兜底：区间档存下限，0 表示任意时长。 */
     videoSeconds: number;
     providerModelKey: string;
     billingMode: ChannelModel["billingMode"];

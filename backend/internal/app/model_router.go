@@ -321,6 +321,10 @@ func channelModelHasCompatiblePriceTier(channelModel model.ChannelModel, intent 
 				continue
 			}
 			if actual, provided := requested[key]; provided && actual != expected {
+				// 已提供的时长落在区间档内仍视为兼容，保证目录发现与路由过滤口径一致。
+				if videoSecondsRangeMatches(expected, key, actual) {
+					continue
+				}
 				compatible = false
 				break
 			}
@@ -491,6 +495,11 @@ func matchSKUSelector(tier map[string]string, requested map[string]string) (bool
 			continue
 		}
 		if requested[key] != expected {
+			// 时长区间档按数值范围命中，例如 "5-10" 覆盖 5 到 10 秒的请求。
+			if videoSecondsRangeMatches(expected, key, requested[key]) {
+				score++
+				continue
+			}
 			// 1.5K 请求在只配置了 1K / 2K 价格档时按相邻档命中，保证旧定价继续可用。
 			if (key == "quality" || key == "resolution" || key == "imageResolution") && strings.ToLower(strings.TrimSpace(requested[key])) == "1.5k" && (expected == "2k" || expected == "1k") {
 				continue
@@ -500,6 +509,20 @@ func matchSKUSelector(tier map[string]string, requested map[string]string) (bool
 		score++
 	}
 	return true, score
+}
+
+// videoSecondsRangeMatches 判断请求秒数是否落在时长区间档内；仅对 videoSeconds 的
+// "N-M" 区间生效，固定秒数与任意时长仍走精确比较。
+func videoSecondsRangeMatches(expected string, key string, requested string) bool {
+	if key != "videoSeconds" {
+		return false
+	}
+	low, high, ok := parseVideoSecondsSelector(expected)
+	if !ok || low == high {
+		return false
+	}
+	seconds, err := strconv.Atoi(strings.TrimSpace(requested))
+	return err == nil && seconds >= low && seconds <= high
 }
 
 func (s *Service) logicalRouteBlocked(route cachedLogicalRoute) bool {

@@ -5,7 +5,7 @@ import { usePopoverAnchorAlign } from "@/hooks/use-popover-anchor-align";
 
 import { imageQualityLabel } from "@/lib/image-quality";
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
-import { modelCapabilityConfigFor, videoDurationOptions } from "@/lib/model-capabilities";
+import { modelCapabilityConfigFor, parseVideoSecondsSelectorValue, videoDurationOptions } from "@/lib/model-capabilities";
 import { formatPriceRange, modelQuoteDescription, modelQuoteRequest, normalizeTierResolution, priceTierSummaryLabel, priceTiersForCurrentSelection, tokenPriceRuleDescription } from "@/lib/model-pricing";
 import { compatibleModelInGroup, configuredModelDisplayName, modelCompatibilityError, resolveCompatibleModel, type ModelRequirements } from "@/lib/model-selection";
 import { groupModelsForPicker, isDirectSystemModel, modelChannelLabel, type ModelPickerGroup } from "@/lib/model-picker-groups";
@@ -653,6 +653,13 @@ function tierDurationLabel(seconds: number) {
     return seconds > 0 ? `${seconds} 秒` : "全部时长";
 }
 
+/** selector.videoSeconds 的用户可读标签：固定秒数或 "5–10 秒" 区间；非时长条件返回空串。 */
+function tierDurationSelectorLabel(value: string | undefined) {
+    const range = parseVideoSecondsSelectorValue(value);
+    if (!range) return "";
+    return range.min === range.max ? `${range.min} 秒` : `${range.min}–${range.max} 秒`;
+}
+
 function tierSpecificationLabel(tier: NonNullable<NonNullable<AiConfig["channels"][number]["modelCosts"]>[number]["logicalPriceTiers"]>[number]) {
     const selector = tier.selector || {};
     const operationLabels: Record<string, string> = { text_to_image: "文生图", image_to_image: "图生图", text_to_video: "文生视频", image_to_video: "图生视频", video_to_video: "视频生视频" };
@@ -663,7 +670,7 @@ function tierSpecificationLabel(tier: NonNullable<NonNullable<AiConfig["channels
         selector.resolution && selector.resolution !== "*" ? imageQualityLabel(selector.resolution) : "",
         selector.size && selector.size !== "*" ? selector.size : "",
         tier.resolution !== "*" ? tierResolutionLabel(tier.resolution) : "",
-        tier.videoSeconds ? tierDurationLabel(tier.videoSeconds) : "",
+        tierDurationSelectorLabel(selector.videoSeconds) || (tier.videoSeconds ? tierDurationLabel(tier.videoSeconds) : ""),
         selector.imageCount && selector.imageCount !== "*" ? `${selector.imageCount} 张参考图` : "",
         selector.videoGenerateAudio === "true" ? "有声" : selector.videoGenerateAudio === "false" ? "无声" : "",
     ].filter(Boolean);

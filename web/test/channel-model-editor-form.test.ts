@@ -222,11 +222,11 @@ describe("channel model editor drafts", () => {
     });
     test("capability changes clear old selectors but preserve money and billing units", () => {
         const draft = initialChannelModelValues(null, protocols);
-        const tier = { ...defaultPriceTier("advanced"), billingMode: "per_second" as const, unitPrice: 2.5, operation: "text_to_video", resolution: "1080p", videoSeconds: 5, videoGenerateAudio: "false", imageCount: 2 };
+        const tier = { ...defaultPriceTier("advanced"), billingMode: "per_second" as const, unitPrice: 2.5, operation: "text_to_video", resolution: "1080p", videoSecondsMin: 5, videoSecondsMax: 5, videoGenerateAudio: "false", imageCount: 2 };
         const next = changeChannelModelCapability({ ...draft, capability: "image", protocol: "video", providerModelKey: "gpt-image-2", priceTiers: [tier] }, protocols);
         expect(next.protocol).toBe("image");
         expect(next.capabilityConfig).toEqual(defaultModelCapabilityConfig("image", "gpt-image-2"));
-        expect(next.priceTiers[0]).toMatchObject({ unitPrice: 2.5, billingMode: "per_second", operation: "*", resolution: "*", videoSeconds: 0, videoGenerateAudio: "*", imageCount: 0 });
+        expect(next.priceTiers[0]).toMatchObject({ unitPrice: 2.5, billingMode: "per_second", operation: "*", resolution: "*", videoSecondsMin: null, videoSecondsMax: null, videoGenerateAudio: "*", imageCount: 0 });
         expect(tier.operation).toBe("text_to_video");
         expect(() => validateChannelModelPrices(next)).toThrow("按秒");
     });
@@ -334,10 +334,11 @@ describe("pricing write validation", () => {
         }
         expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", priceTiers: [{ ...defaultPriceTier("advanced"), operation: "image_to_video" }] })).not.toThrow();
         expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", priceTiers: [{ ...defaultPriceTier("advanced"), resolution: "1080p" }] })).not.toThrow();
-        // 生成时长是可见匹配条件：只有时长也能成档，但必须落在模型声明的时长范围内。
+        // 生成时长是可见匹配条件：只有时长也能成档，但范围必须覆盖模型声明的时长。
         const videoConfig = defaultModelCapabilityConfig("volcengine-ark-video", "seedance");
-        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSeconds: 5 }] })).not.toThrow();
-        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSeconds: 999 }] })).toThrow("生成时长");
+        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSecondsMin: 5, videoSecondsMax: 10 }] })).not.toThrow();
+        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSecondsMin: 999, videoSecondsMax: 999 }] })).toThrow("生成时长");
+        expect(() => validateChannelModelPrices({ ...draft, capability: "video", protocol: "volcengine-ark-video", capabilityConfig: videoConfig, priceTiers: [{ ...defaultPriceTier("advanced"), videoSecondsMin: 10, videoSecondsMax: 5 }] })).toThrow("最短时长");
     });
     test("requires reference video prices only when reference video billing is enabled", () => {
         const video = { ...draft, capability: "video" as const, protocol: "volcengine-ark-video" };

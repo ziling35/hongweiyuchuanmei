@@ -1,4 +1,5 @@
 import { imageQualityLabel } from "@/lib/image-quality";
+import { parseVideoSecondsSelectorValue } from "@/lib/model-capabilities";
 import type { ChannelModel, ChannelModelPriceTier } from "@/services/api/wallet";
 import { priceCurrencyUnit } from "@/services/api/user-groups";
 import { AdminStatusBadge } from "./admin-ui";
@@ -65,7 +66,8 @@ export function specificationLabel(tier: ChannelModelPriceTier) {
     const specific = (value?: string) => (value && value !== "*" ? value : "");
     const operation = specific(selector.operation);
     const resolution = specific(selector.vquality) || specific(tier.resolution);
-    const duration = specific(selector.videoSeconds) || (tier.videoSeconds ? String(tier.videoSeconds) : "");
+    const durationCondition = parseVideoSecondsSelectorValue(selector.videoSeconds);
+    const duration = durationCondition ? (durationCondition.min === durationCondition.max ? `${durationCondition.min}` : `${durationCondition.min}-${durationCondition.max}`) : tier.videoSeconds ? String(tier.videoSeconds) : "";
     const operations: Record<string, string> = { text_to_image: "文生图", image_to_image: "图生图", text_to_video: "文生视频", image_to_video: "图生视频", video_to_video: "视频生视频", text_generation: "文本生成" };
     return (
         [

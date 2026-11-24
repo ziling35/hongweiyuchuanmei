@@ -1,4 +1,4 @@
-import { defaultModelCapabilityConfig, videoDurationAllowed, videoDurationOptions } from "@/lib/model-capabilities";
+import { defaultModelCapabilityConfig, parseVideoSecondsSelectorValue, videoDurationOptions, videoDurationRangeAllowed } from "@/lib/model-capabilities";
 import { imageHostControls, imageParameterAccepts, initializeImageRatioDefaults, resolveImageParameters, type ImageParameter } from "@/lib/image-parameters";
 import { imageResolutionTiers } from "@/lib/image-size-presets";
 import { normalizeTierResolution } from "@/lib/model-pricing";
@@ -177,7 +177,11 @@ export function buildPricingTemplate(id: string, selectedDimensions: string[], v
     for (const dimension of selected)
         tiers = tiers.flatMap((tier) =>
             dimension.values.map((value) =>
-                dimension.imageParameter ? { ...tier, imageSelector: { ...tier.imageSelector, [dimension.field]: value } } : dimension.field === "videoSeconds" ? { ...tier, videoSeconds: Number(value) } : { ...tier, [dimension.field]: value },
+                dimension.imageParameter
+                    ? { ...tier, imageSelector: { ...tier.imageSelector, [dimension.field]: value } }
+                    : dimension.field === "videoSeconds"
+                      ? { ...tier, videoSecondsMin: Number(value), videoSecondsMax: Number(value) }
+                      : { ...tier, [dimension.field]: value },
             ),
         );
     return tiers;
@@ -221,8 +225,11 @@ export function priceSelectorIssues(values: PricingContext & { priceTiers: Price
                 for (const field of ["resolution", "fpsBand"] as const) {
                     if (specific(tier[field]) && !dimensions.find((item) => item.id === field)?.values.includes(field === "resolution" ? normalizeTierResolution(tier[field]) : tier[field])) fail(`条件 ${field}=${tier[field]} 不受当前参数支持`);
                 }
-                const seconds = Number(tier.videoSeconds || 0);
-                if (seconds > 0 && !videoDurationAllowed(values.capabilityConfig.video, Math.round(seconds))) fail(`生成时长 ${seconds} 秒不在该视频模型支持范围内`);
+                const durationMin = tier.videoSecondsMin;
+                const durationMax = tier.videoSecondsMax;
+                // 上下界颠倒由 validateChannelModelPrices 报错，这里只拦“永远无法命中”的死档。
+                if (durationMin != null && durationMax != null && durationMin <= durationMax && !videoDurationRangeAllowed(values.capabilityConfig.video, Math.round(durationMin), Math.round(durationMax)))
+                    fail(`生成时长范围 ${durationMin}-${durationMax} 秒未覆盖该视频模型支持的时长`);
             }
         }
         return skuSelectorFromForm(values.capability, tier, values.capabilityConfig);
@@ -232,10 +239,25 @@ export function priceSelectorIssues(values: PricingContext & { priceTiers: Price
         for (let previous = 0; previous < index; previous++) {
             const other = selectors[previous];
             if (Object.keys(other).length !== entries.length) continue;
-            if (entries.every(([key, value]) => other[key] === undefined || other[key] === value)) issues.push(`价格档 ${previous + 1} 与 ${index + 1} 条件重复或同优先级重叠，请调整`);
+            const conflicts = entries.every(([key, value]) => {
+                const otherValue = other[key];
+                // 条件数量相同即同一优先级：对方缺少该条件也算重叠（如“仅时长”与“仅画质”两档）。
+                if (otherValue === undefined) return true;
+                if (key === "videoSeconds") return videoSecondsConditionsOverlap(otherValue, value);
+                return otherValue === value;
+            });
+            if (conflicts) issues.push(`价格档 ${previous + 1} 与 ${index + 1} 条件重复或同优先级重叠，请调整`);
         }
     });
     return issues;
+}
+
+/** 两个时长条件（精确秒数或 N-M 闭区间）是否能同时命中同一请求；解析失败时退回字符串比较。 */
+function videoSecondsConditionsOverlap(a: string, b: string) {
+    const left = parseVideoSecondsSelectorValue(a);
+    const right = parseVideoSecondsSelectorValue(b);
+    if (!left || !right) return a === b;
+    return left.min <= right.max && right.min <= left.max;
 }
 
 export function priceTierTemplateSummary(tier: PriceTierFormValues) {

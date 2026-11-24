@@ -1,6 +1,6 @@
 import type { ModelCapabilityChoice } from "@/components/model-protocol-picker";
 import type { FormInstance } from "antd";
-import { defaultModelCapabilityConfig, normalizeLegacyImageResolutionConfig, normalizeModelCapabilityConfig, officialVideoCapabilityPreset, videoDurationAllowed, type ModelCapabilityConfig } from "@/lib/model-capabilities";
+import { defaultModelCapabilityConfig, normalizeLegacyImageResolutionConfig, normalizeModelCapabilityConfig, officialVideoCapabilityPreset, videoDurationRangeAllowed, type ModelCapabilityConfig } from "@/lib/model-capabilities";
 import { imagePresetForRatio, imageSizePresets } from "@/lib/image-size-presets";
 import { definitionForRelease, modelProtocolSupportsTokenBilling, type ModelProtocolDefinition } from "@/lib/model-protocols";
 import type { ChannelModel } from "@/services/api/wallet";
@@ -132,7 +132,8 @@ export function changeChannelModelCapability(values: ChannelModelFormValues, pro
                 quality: "*",
                 size: "*",
                 resolution: "*",
-                videoSeconds: capability === "video" ? tier.videoSeconds : 0,
+                videoSecondsMin: capability === "video" ? tier.videoSecondsMin : null,
+                videoSecondsMax: capability === "video" ? tier.videoSecondsMax : null,
                 videoGenerateAudio: "*",
                 imageCount: 0,
             })),
@@ -246,11 +247,16 @@ export function validateChannelModelPrices(values: Pick<ChannelModelFormValues, 
                 (image?.quality.supported !== false && specific(tier.quality)) ||
                 specific(tier.resolution) ||
                 specific(tier.size);
-            if (capability === "video" && Number(tier.videoSeconds || 0) > 0) {
+            const durationMin = tier.videoSecondsMin;
+            const durationMax = tier.videoSecondsMax;
+            if (capability === "video" && (durationMin != null || durationMax != null)) {
                 const profile = values.capabilityConfig?.video;
-                if (profile && !videoDurationAllowed(profile, Math.round(Number(tier.videoSeconds)))) fail(`生成时长 ${tier.videoSeconds} 秒不在该视频模型支持范围内`);
+                if (durationMin == null || durationMax == null || !Number.isFinite(durationMin) || !Number.isFinite(durationMax)) fail("请完整填写生成时长范围的最短与最长秒数；留空表示任意时长");
+                else if (durationMin > durationMax) fail(`最短时长 ${durationMin} 秒不能大于最长时长 ${durationMax} 秒`);
+                else if (profile && !videoDurationRangeAllowed(profile, Math.round(durationMin), Math.round(durationMax))) fail(`生成时长范围 ${durationMin}-${durationMax} 秒未覆盖该视频模型支持的时长`);
             }
-            const hasVideoCondition = specific(tier.resolution) || Number(tier.videoSeconds || 0) > 0 || Boolean(values.capabilityConfig?.video?.processing && specific(tier.fpsBand));
+            const hasDurationCondition = capability === "video" && durationMin != null && durationMax != null;
+            const hasVideoCondition = specific(tier.resolution) || hasDurationCondition || Boolean(values.capabilityConfig?.video?.processing && specific(tier.fpsBand));
             if (!(specific(tier.operation) || (capability === "image" && imageCondition) || (capability === "video" && hasVideoCondition))) fail("规格价格至少需要一个匹配条件；统一价格请选择默认价格");
         }
         const prices =

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -693,9 +694,7 @@ func capabilitySpecWithPriceTiers(spec CapabilitySpec, channelModel model.Channe
 	}
 	hasResolutionWildcard, hasDurationWildcard := false, false
 	resolutions := make([]any, 0, len(tiers))
-	durations := make([]any, 0, len(tiers))
 	seenResolutions := make(map[string]bool, len(tiers))
-	seenDurations := make(map[int]bool, len(tiers))
 	for _, tier := range tiers {
 		if normalizeChannelModelTierResolution(tier.Resolution) == "*" {
 			hasResolutionWildcard = true
@@ -703,11 +702,8 @@ func capabilitySpecWithPriceTiers(spec CapabilitySpec, channelModel model.Channe
 			seenResolutions[value] = true
 			resolutions = append(resolutions, value)
 		}
-		if tier.VideoSeconds == 0 {
+		if _, _, constrained := tierDurationConstraint(tier); !constrained {
 			hasDurationWildcard = true
-		} else if !seenDurations[tier.VideoSeconds] {
-			seenDurations[tier.VideoSeconds] = true
-			durations = append(durations, tier.VideoSeconds)
 		}
 	}
 	if !hasResolutionWildcard && len(resolutions) > 0 {
@@ -726,8 +722,63 @@ func capabilitySpecWithPriceTiers(spec CapabilitySpec, channelModel model.Channe
 			result.Options["vquality"] = OptionConstraint{Values: resolutions}
 		}
 	}
-	if !hasDurationWildcard && len(durations) > 0 {
-		result.Options["videoSeconds"] = OptionConstraint{Values: durations}
+	// 时长档可以是精确秒数或区间；创作端可选时长 = 能力声明候选中被任一活动档覆盖的值。
+	if !hasDurationWildcard {
+		durations := make([]any, 0, len(tiers))
+		for _, seconds := range declaredVideoDurationCandidates(spec) {
+			for _, tier := range tiers {
+				if low, high, constrained := tierDurationConstraint(tier); constrained && seconds >= low && seconds <= high {
+					durations = append(durations, seconds)
+					break
+				}
+			}
+		}
+		if len(durations) > 0 {
+			result.Options["videoSeconds"] = OptionConstraint{Values: durations}
+		}
+	}
+	return result
+}
+
+// tierDurationConstraint 返回价格档的时长约束（精确秒数或闭区间）；constrained=false 表示任意时长。
+func tierDurationConstraint(tier model.ChannelModelPriceTier) (low int, high int, constrained bool) {
+	return parseVideoSecondsSelector(skuSelectorForTier(tier)["videoSeconds"])
+}
+
+// maxDeclaredDurationCandidates 限制能力声明时长的展开规模，超出时保持原约束不变，
+// 避免异常配置生成过大的目录枚举。
+const maxDeclaredDurationCandidates = 512
+
+// declaredVideoDurationCandidates 展开能力声明支持的候选时长：枚举取声明值，
+// 区间按 step 展开；能力未声明时长时返回 nil。
+func declaredVideoDurationCandidates(spec CapabilitySpec) []int {
+	constraint, ok := spec.Options["videoSeconds"]
+	if !ok {
+		return nil
+	}
+	if len(constraint.Values) > 0 {
+		result := make([]int, 0, len(constraint.Values))
+		for _, value := range constraint.Values {
+			if seconds, err := strconv.Atoi(strings.TrimSpace(fmt.Sprint(value))); err == nil && seconds > 0 {
+				result = append(result, seconds)
+			}
+		}
+		return result
+	}
+	if constraint.Min == nil || constraint.Max == nil {
+		return nil
+	}
+	min, max := int(*constraint.Min), int(*constraint.Max)
+	step := 1
+	if constraint.Step != nil && *constraint.Step > 0 {
+		step = int(*constraint.Step)
+	}
+	if min <= 0 || max < min || (max-min)/step+1 > maxDeclaredDurationCandidates {
+		return nil
+	}
+	result := make([]int, 0, (max-min)/step+1)
+	for seconds := min; seconds <= max; seconds += step {
+		result = append(result, seconds)
 	}
 	return result
 }
@@ -762,16 +813,27 @@ func channelModelDefaultOptions(channelModel model.ChannelModel, spec Capability
 		}
 	}
 	// 当渠道默认规格没有价格档时，优先选择第一个可结算档，确保初始选择可直接生成。
+	// 区间时长档的下限可能不对齐能力 step，因此取档内第一个能力支持的时长作默认。
 	if spec.Capability == "video" && channelModelPriceTierForIntent(channelModel, ModelRequestIntent{Capability: "video", Options: defaults}) == nil {
 		for _, tier := range channelModel.PriceTiers {
 			if !tier.Enabled || !tier.PriceConfigured {
 				continue
 			}
-			if tier.Resolution != "*" {
-				defaults["vquality"] = normalizeChannelModelTierResolution(tier.Resolution)
+			if resolution := normalizeChannelModelTierResolution(tier.Resolution); resolution != "*" {
+				defaults["vquality"] = resolution
 			}
-			if tier.VideoSeconds > 0 {
-				defaults["videoSeconds"] = tier.VideoSeconds
+			if low, high, constrained := tierDurationConstraint(tier); constrained {
+				seconds := 0
+				for _, candidate := range declaredVideoDurationCandidates(spec) {
+					if candidate >= low && candidate <= high {
+						seconds = candidate
+						break
+					}
+				}
+				if seconds == 0 {
+					seconds = low
+				}
+				defaults["videoSeconds"] = seconds
 			}
 			break
 		}

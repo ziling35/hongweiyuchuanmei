@@ -2,7 +2,7 @@ import { modelRequestOptions, resolveVideoOperation, type ModelRequirements } fr
 import { mediaSettingIssues, resolvedMediaConfig } from "@/lib/media-settings";
 import { videoResolutionComparisonKey } from "@/lib/video-generation-options";
 import { imagePriceSelector, normalizeImagePriceSelector } from "@/lib/image-pricing";
-import { modelCapabilityConfigFor } from "@/lib/model-capabilities";
+import { modelCapabilityConfigFor, parseVideoSecondsSelectorValue } from "@/lib/model-capabilities";
 import type { LogicalModelQuote, ModelQuoteRequest, ModelRequestIntent } from "@/services/api/logical-models";
 import { modelOptionName, resolveModelChannel, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 
@@ -42,7 +42,7 @@ export function priceTiersForCurrentSelection(tiers: ModelPriceTier[], capabilit
     for (const tier of tiers) {
         const selector = priceSelectorForTier(tier, Boolean(modelCapabilityConfigFor(config, config.model || config.imageModel).image?.parameters));
         const conditions = Object.entries(selector).filter(([, value]) => value && value !== "*");
-        if (conditions.some(([key, value]) => requested[key] !== value)) continue;
+        if (conditions.some(([key, value]) => (key === "videoSeconds" ? !videoSecondsConditionMatches(value, requested[key]) : requested[key] !== value))) continue;
         const score = conditions.length;
         if (score > bestScore) {
             bestScore = score;
@@ -256,6 +256,14 @@ function priceSelectorForTier(tier: ModelPriceTier, declaredParameters = false) 
         if (tier.videoSeconds > 0) selector.videoSeconds = String(tier.videoSeconds);
     }
     return selector;
+}
+
+/** 档位时长条件匹配：固定秒数要求相等，"N-M" 区间要求请求秒数落在闭区间内。 */
+function videoSecondsConditionMatches(expected: string, requested: string | undefined) {
+    const range = parseVideoSecondsSelectorValue(expected);
+    if (!range || range.min === range.max) return requested === expected;
+    const seconds = Number(requested);
+    return Number.isFinite(seconds) && seconds >= range.min && seconds <= range.max;
 }
 
 export function normalizeTierResolution(value: string) {

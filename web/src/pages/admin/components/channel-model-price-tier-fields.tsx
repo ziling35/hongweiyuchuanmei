@@ -135,8 +135,8 @@ export function PriceTierFields({
                                     </Form.Item>
                                 ) : null}
                                 {isVideo && durationOptions.length ? (
-                                    <Form.Item className="mb-0" name={[index, "videoSeconds"]} label="生成时长" tooltip="按生成秒数精确匹配价格档，0 表示任意时长；可选时长来自该模型能力里声明的时长枚举或区间。">
-                                        <Select options={[{ label: "任意时长", value: 0 }, ...durationOptions.map((seconds) => ({ label: `${seconds} 秒`, value: seconds }))]} />
+                                    <Form.Item className="mb-0" label="生成时长" tooltip="按时长范围匹配价格档：填写最短与最长秒数为闭区间（两者相等即固定秒数）；选择任意时长则该档不限制时长。范围只需覆盖模型支持的时长即可。">
+                                        <DurationRangeFields index={index} form={form} durationOptions={durationOptions} step={video?.duration?.step || 1} onDirty={onDirty} />
                                     </Form.Item>
                                 ) : null}
                                 {isVideo && video?.processing && video.defaultOperation !== "depth" ? (
@@ -318,6 +318,49 @@ const fpsBandOptions = [
     { label: "30–60fps", value: "le60" },
     { label: "60–120fps", value: "le120" },
 ];
+
+/** 生成时长范围控件：任意时长（不写条件）或最短–最长闭区间，相等边界即固定秒数。 */
+function DurationRangeFields({ index, form, durationOptions, step, onDirty }: { index: number; form: FormInstance<FormValues>; durationOptions: number[]; step: number; onDirty: () => void }) {
+    const min = Form.useWatch(["priceTiers", index, "videoSecondsMin"], form);
+    const max = Form.useWatch(["priceTiers", index, "videoSecondsMax"], form);
+    const bounded = typeof min === "number" || typeof max === "number";
+    const bounds = { min: Math.min(...durationOptions), max: Math.max(...durationOptions) };
+    const numberProps = { min: bounds.min, max: bounds.max, step: Math.max(1, step), precision: 0, className: "w-24" } as const;
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            <Segmented
+                aria-label="生成时长匹配方式"
+                options={[
+                    { label: "任意时长", value: "any" },
+                    { label: "指定范围", value: "range" },
+                ]}
+                value={bounded ? "range" : "any"}
+                onChange={(value) => {
+                    onDirty();
+                    if (value === "range") {
+                        form.setFieldValue(["priceTiers", index, "videoSecondsMin"], bounds.min);
+                        form.setFieldValue(["priceTiers", index, "videoSecondsMax"], bounds.max);
+                    } else {
+                        form.setFieldValue(["priceTiers", index, "videoSecondsMin"], null);
+                        form.setFieldValue(["priceTiers", index, "videoSecondsMax"], null);
+                    }
+                }}
+            />
+            {bounded ? (
+                <>
+                    <Form.Item name={[index, "videoSecondsMin"]} noStyle>
+                        <InputNumber {...numberProps} placeholder="最短" aria-label="最短生成秒数" />
+                    </Form.Item>
+                    <span className="text-[var(--fs-tiny)] text-[var(--creation-muted)]">至</span>
+                    <Form.Item name={[index, "videoSecondsMax"]} noStyle>
+                        <InputNumber {...numberProps} placeholder="最长" aria-label="最长生成秒数" />
+                    </Form.Item>
+                    <span className="text-[var(--fs-tiny)] text-[var(--creation-muted)]">秒</span>
+                </>
+            ) : null}
+        </div>
+    );
+}
 
 function operationOptions(capability: EditableCapability | undefined) {
     const options = [{ label: "任意生成方式", value: "*" }];

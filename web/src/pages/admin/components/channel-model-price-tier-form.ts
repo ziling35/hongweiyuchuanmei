@@ -1,5 +1,5 @@
 import type { ModelCapabilityChoice } from "@/components/model-protocol-picker";
-import type { ModelCapabilityConfig } from "@/lib/model-capabilities";
+import { parseVideoSecondsSelectorValue, type ModelCapabilityConfig } from "@/lib/model-capabilities";
 import type { ImageCapabilityConfig } from "@/lib/model-capabilities";
 import type { ChannelModel, ChannelModelPriceTier, TokenPriceRule } from "@/services/api/wallet";
 import { imagePricingToForm, imagePricingPayload, validImagePricingForm, type ImagePricingForm } from "@/lib/image-usage-pricing";
@@ -109,7 +109,9 @@ export type PriceTierFormValues = {
     quality: string;
     size: string;
     resolution: string;
-    videoSeconds: number;
+    /** 生成时长条件（秒）：null 表示任意时长；两者相等为固定秒数，否则为闭区间。 */
+    videoSecondsMin: number | null;
+    videoSecondsMax: number | null;
     videoGenerateAudio: string;
     /** 视频处理输出帧率档：le30 / le60 / le120，* 表示任意。 */
     fpsBand: string;
@@ -149,7 +151,8 @@ export function defaultPriceTier(matchMode: PriceTierMatchMode = "default"): Pri
         quality: "*",
         size: "*",
         resolution: "*",
-        videoSeconds: 0,
+        videoSecondsMin: null,
+        videoSecondsMax: null,
         videoGenerateAudio: "*",
         fpsBand: "*",
         imageCount: 0,
@@ -190,8 +193,10 @@ export function priceTierToForm(tier: ChannelModelPriceTier, image?: ImageCapabi
         delete selector.resolution;
     }
     const candidates = image?.parameters ? Object.values(selector) : [selector.operation, selector.imageResolution, selector.quality, selector.resolution, selector.size, selector.fpsBand, selector.videoSeconds];
-    // 时长档同样属于"按规格定价"：0 表示任意时长，不参与匹配。
+    // 时长档同样属于"按规格定价"：缺省表示任意时长，不参与匹配。
     const hasSpecificMatch = candidates.some((value) => value && value !== "*") || (tier.resolution && tier.resolution !== "*") || (tier.videoSeconds || 0) > 0;
+    const durationCondition = parseVideoSecondsSelectorValue(selector.videoSeconds);
+    const legacySeconds = tier.videoSeconds || 0;
     return {
         imagePricing: imagePricingToForm(tier.imagePricing),
         costImagePricing: imagePricingToForm(tier.costPricing?.imagePricing),
@@ -202,7 +207,8 @@ export function priceTierToForm(tier: ChannelModelPriceTier, image?: ImageCapabi
         quality: selector.quality || "*",
         size: selector.size || "*",
         resolution: selector.resolution || tier.resolution || "*",
-        videoSeconds: tier.videoSeconds || Number(selector.videoSeconds || 0) || 0,
+        videoSecondsMin: durationCondition ? durationCondition.min : legacySeconds > 0 ? legacySeconds : null,
+        videoSecondsMax: durationCondition ? durationCondition.max : legacySeconds > 0 ? legacySeconds : null,
         videoGenerateAudio: selector.videoGenerateAudio || "*",
         fpsBand: selector.fpsBand || "*",
         imageCount: Number(selector.imageCount || 0),
@@ -253,9 +259,14 @@ export function skuSelectorFromForm(capability: ModelCapabilityChoice, tier: Pri
     if (capability === "video") {
         if (tier.resolution && tier.resolution !== "*") selector.vquality = tier.resolution;
         if (capabilityConfig?.video?.processing && tier.fpsBand && tier.fpsBand !== "*") selector.fpsBand = tier.fpsBand;
-        // 0 表示任意时长；后端按 selector.videoSeconds 做精确匹配，不吃区间。
-        const seconds = Number(tier.videoSeconds || 0);
-        if (Number.isFinite(seconds) && seconds > 0) selector.videoSeconds = String(Math.round(seconds));
+        // 任意时长不写条件；相等边界写固定秒数，否则写闭区间 "N-M"，后端按数值范围匹配。
+        const min = tier.videoSecondsMin;
+        const max = tier.videoSecondsMax;
+        if (typeof min === "number" && typeof max === "number" && Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min) {
+            const roundedMin = Math.round(min);
+            const roundedMax = Math.round(max);
+            selector.videoSeconds = roundedMin === roundedMax ? String(roundedMin) : `${roundedMin}-${roundedMax}`;
+        }
     }
     if (capability === "image") {
         if (capabilityConfig?.image?.parameters) {
@@ -285,10 +296,10 @@ export function priceTierResolutionFromForm(capability: ModelCapabilityChoice, t
 }
 
 export function priceTierVideoSecondsFromForm(capability: ModelCapabilityChoice, tier: PriceTierFormValues) {
-    // 只有视频的"按规格定价"档能带生成时长；0 表示任意时长。
+    // 旧列仅作回显兜底：区间档存下限，0 表示任意时长。
     if (capability !== "video" || tier.matchMode !== "advanced") return 0;
-    const seconds = Number(tier.videoSeconds || 0);
-    return Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+    const min = tier.videoSecondsMin;
+    return typeof min === "number" && Number.isFinite(min) && min > 0 ? Math.round(min) : 0;
 }
 
 export function priceTierPayloadFromForm(capability: ModelCapabilityChoice, tier: PriceTierFormValues, upstreamModel: string, capabilityConfig?: ModelCapabilityConfig) {
