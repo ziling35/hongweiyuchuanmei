@@ -30,12 +30,11 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 0;
-    height: 0;
+    width: 11px;
+    height: 14px;
     transform: translate(-38%, -50%);
-    border-top: 7px solid transparent;
-    border-bottom: 7px solid transparent;
-    border-left: 11px solid #ffffff;
+    background: #ffffff;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
     content: "";
     pointer-events: none;
 }
