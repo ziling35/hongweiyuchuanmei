@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Alert, Button, Form, Input, InputNumber, Segmented, Switch, type FormInstance } from "antd";
 import { Trash2 } from "lucide-react";
 import { videoDurationOptions, type ModelCapabilityConfig } from "@/lib/model-capabilities";
@@ -321,9 +322,19 @@ const fpsBandOptions = [
 
 /** 生成时长范围控件：任意时长（不写条件）或最短–最长闭区间，相等边界即固定秒数。 */
 function DurationRangeFields({ index, form, durationOptions, step, onDirty }: { index: number; form: FormInstance<FormValues>; durationOptions: number[]; step: number; onDirty: () => void }) {
-    const min = Form.useWatch(["priceTiers", index, "videoSecondsMin"], form);
-    const max = Form.useWatch(["priceTiers", index, "videoSecondsMax"], form);
-    const bounded = typeof min === "number" || typeof max === "number";
+    // 区间输入框只在选中「指定范围」后才渲染，属于未注册字段。useWatch 默认只读已注册字段的值，
+    // 不加 preserve 时程序写入的最短/最长秒数读不到，控件会一直退回「任意时长」。
+    const min = Form.useWatch(["priceTiers", index, "videoSecondsMin"], { form, preserve: true });
+    const max = Form.useWatch(["priceTiers", index, "videoSecondsMax"], { form, preserve: true });
+    const [mode, setMode] = useState<"any" | "range">(() => {
+        const currentMin = form.getFieldValue(["priceTiers", index, "videoSecondsMin"]);
+        const currentMax = form.getFieldValue(["priceTiers", index, "videoSecondsMax"]);
+        return typeof currentMin === "number" || typeof currentMax === "number" ? "range" : "any";
+    });
+    // 外部写入（套用模板、打开已有时长区间档）跟随表单值切换模式；用户清空输入框时保持当前模式，不收起控件。
+    useEffect(() => {
+        if (typeof min === "number" || typeof max === "number") setMode("range");
+    }, [min, max]);
     const bounds = { min: Math.min(...durationOptions), max: Math.max(...durationOptions) };
     const numberProps = { min: bounds.min, max: bounds.max, step: Math.max(1, step), precision: 0, className: "w-24" } as const;
     return (
@@ -334,10 +345,12 @@ function DurationRangeFields({ index, form, durationOptions, step, onDirty }: { 
                     { label: "任意时长", value: "any" },
                     { label: "指定范围", value: "range" },
                 ]}
-                value={bounded ? "range" : "any"}
+                value={mode}
                 onChange={(value) => {
                     onDirty();
-                    if (value === "range") {
+                    const next = value === "range" ? "range" : "any";
+                    setMode(next);
+                    if (next === "range") {
                         form.setFieldValue(["priceTiers", index, "videoSecondsMin"], bounds.min);
                         form.setFieldValue(["priceTiers", index, "videoSecondsMax"], bounds.max);
                     } else {
@@ -346,7 +359,7 @@ function DurationRangeFields({ index, form, durationOptions, step, onDirty }: { 
                     }
                 }}
             />
-            {bounded ? (
+            {mode === "range" ? (
                 <>
                     <Form.Item name={[index, "videoSecondsMin"]} noStyle>
                         <InputNumber {...numberProps} placeholder="最短" aria-label="最短生成秒数" />
