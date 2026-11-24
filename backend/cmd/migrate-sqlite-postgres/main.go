@@ -378,6 +378,9 @@ func migrations() []tableMigration {
 		migrateTable[model.UserGroupChannel]("user_group_channels"),
 		migrateTable[model.UserAvatar]("user_avatars"),
 		migrateTable[model.UserFeedback]("user_feedbacks"),
+		// 作品广场：分类先于作品复制，两者都依赖 users 已写入。
+		migrateTable[model.ShowcaseCategory]("showcase_categories"),
+		migrateTable[model.ShowcaseWork]("showcase_works"),
 		migrateTable[model.DramaProduction]("drama_productions"),
 		migrateTable[model.DramaCast]("drama_casts"),
 		migrateTable[model.DramaEpisode]("drama_episodes"),
