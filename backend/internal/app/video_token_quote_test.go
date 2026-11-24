@@ -196,7 +196,7 @@ func assertVideoTokenQuote(t *testing.T, quote *LogicalModelQuote, amount int64)
 	}
 	want := VideoTokenEstimate{
 		FormulaTokens: 108_000, ReservedTokens: 118_800, OutputWidth: 1280, OutputHeight: 720,
-		FramesPerSecond: 24, OutputSeconds: 5, ReservationMarginPercent: 10,
+		FramesPerSecond: 24, OutputSeconds: 5, ReservationMarginPercent: 10, ReservationMarginBPS: 1_000,
 	}
 	if quote.VideoTokenEstimate == nil || *quote.VideoTokenEstimate != want {
 		t.Fatalf("video estimate = %#v, want %#v", quote.VideoTokenEstimate, want)
