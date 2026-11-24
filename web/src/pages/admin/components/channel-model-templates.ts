@@ -124,7 +124,8 @@ export function pricingDimensions(values: PricingContext): PricingDimension[] {
             video.operations.filter((operation) => ["text_to_video", "image_to_video", "video_to_video", "enhance", "depth"].includes(operation)),
         );
         add("resolution", "分辨率", [...video.resolutions, ...(video.fixedScreenSpec?.resolutions || [])].map(normalizeTierResolution));
-        if (video.duration) {
+        // depth 由源视频时长决定，不提供生成时长计价维度（与 fpsBand 同一处理）。
+        if (video.duration && video.defaultOperation !== "depth") {
             const durations = videoDurationOptions(video);
             if (durations.length) add("videoSeconds", "生成时长", durations.map(String));
         }
