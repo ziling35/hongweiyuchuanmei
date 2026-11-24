@@ -1,9 +1,10 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { packageDirectories } from "./package-directories.mjs";
 
-const root = dirname(fileURLToPath(import.meta.url));
+const defaultRoot = dirname(fileURLToPath(import.meta.url));
+const root = process.env.PLUGIN_PACKAGE_ROOT ? resolve(process.env.PLUGIN_PACKAGE_ROOT) : defaultRoot;
 const contractStart = "<!-- YINGCE_MANIFEST_CONTRACT_START -->";
 const contractEnd = "<!-- YINGCE_MANIFEST_CONTRACT_END -->";
 const recursiveDocumentationPlaceholder =

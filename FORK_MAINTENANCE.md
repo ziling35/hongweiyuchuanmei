@@ -130,9 +130,25 @@ docker compose --env-file .env -f docker-compose.deploy.yml exec -T postgres \
 1. `VERSION` 和 `CHANGELOG.md` 只在打版本 tag 的那次提交里修改；同步冲突时直接取上游内容，再重新 bump
 2. 不要修改已存在的数据库迁移文件（按名称 + checksum 校验，改动会导致 `migrate-schema up` 失败），需要改 schema 就新增迁移
 3. 不要修改 `.github/workflows/quality.yml` 里 job 的 `name`，发布流程靠这些检查名判定是否放行
-4. 能做成插件的定制就放到 `plugin-packages/`（参考现有 `.yingce-plugin` 包），不改核心代码，这类改动永远不会和上游冲突
+4. 能做成插件的定制就做成插件（参考现有 `.yingce-plugin` 包），不改核心代码，这类改动永远不会和上游冲突；自建的定制插件放 `custom-plugins/`（不进镜像，后台导入），不要放进 `plugin-packages/`，见第 9 节
 5. 上游和 fork 同时占用了同一个迁移版本号时，不许改上游那条迁移：把 fork 的迁移改成下一个空号（并同步 `CurrentSchemaVersion`），再在 `MigrateSchema` 里加一条账本归一化，把旧号记录改写成新号（参考 `normalizeForkShowcaseMigration`），否则已有数据库升级时会被名称/校验和校验拒绝启动
+6. 改插件包内容必须 bump 版本：`plugin-packages/<id>/` 下会被打进 `.yingce-plugin` 的文件（`manifest.json`、`README.md`、`docs/`、`assets/`、`web/`、`backend/`、`LICENSE`）只要发生变化，就要同时提升 `manifest.json` 的 `version` 并重新生成包。同版本不同摘要会让已部署实例升级时后端拒绝启动（`pluginRuntimeErr`，日志为「请求插件 <id>@<version> 已安装，但包摘要不同；请发布新版本」）。推送前 `node plugin-packages/check-version-bumps.mjs` 会拦截这类改动，`scripts/verify-before-push.mjs` 已接入该检查
+7. 重新生成包的标准做法：`node plugin-packages/embed-documentation.mjs <id>` 刷新 README/docs 里的 manifest 契约，再打包成 `<id>.yingce-plugin`；提交时把 `manifest.json`、`README.md`、`docs/`、`<id>.yingce-plugin` 一起带上，不能只改源码目录
 
 ## 8. 与官方更新器的关系
 
 Host Updater 会把 `.env` 里的 `CANVAS_*_IMAGE` 改回它认为的目标版本并重启容器。如果服务器使用本 fork 的镜像，要么只走第 6 节的手动更新，要么确认更新器的来源与目标版本也指向本 fork 的 Release，不要让两套机制同时决定镜像版本。
+
+## 9. 插件分层：内置 vs 自建
+
+| 目录 | 是否进镜像 | 改完怎么生效 |
+| --- | --- | --- |
+| `plugin-packages/` | 是（`backend/Dockerfile` 的 `COPY plugin-packages`） | 必须重新构建镜像、发版，再跑服务器更新脚本；同版本改内容会让后端启动失败（第 7 节第 6 条） |
+| `custom-plugins/` | 否（`.dockerignore` 已排除） | `node custom-plugins/build.mjs <id>` 重新打包，管理后台 → 插件 → 导入上传，不重启、不发版 |
+
+约定：
+
+1. 自己维护的协议插件默认放 `custom-plugins/`，不要放进 `plugin-packages/`——内置插件改一次就要发一次镜像，还会因为摘要不一致把升级卡住
+2. 两个目录共用同一套版本纪律，`node plugin-packages/check-version-bumps.mjs` 会同时检查
+3. 插件从 `plugin-packages/` 移到 `custom-plugins/` 后，已部署实例不受影响（登记表和缓存的包都在数据卷 `/data` 里），但**新机器首次部署不再自带该插件**，需要在后台导入一次
+4. 完整流程见 [custom-plugins/README.md](custom-plugins/README.md)

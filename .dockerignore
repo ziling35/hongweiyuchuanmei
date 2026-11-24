@@ -27,3 +27,5 @@ web/out
 .settings-key
 .env*
 !.env.example
+# 自建插件不进镜像，只在构建上下文里排除
+custom-plugins

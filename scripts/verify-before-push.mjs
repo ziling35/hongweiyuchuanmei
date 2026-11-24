@@ -167,6 +167,11 @@ if (wantBackend) {
     if (!process.env.CANVAS_TEST_POSTGRES_DSN || spawnSync("redis-server", ["--version"]).status !== 0) notCovered.push("依赖 PostgreSQL / redis-server 的 5 个后端用例（本机缺少服务时会跳过，由 CI 检查）");
 } else skipped.push("后端检查（没有 backend/ 改动）");
 
+// 插件包内容变化必须伴随 manifest 版本提升，否则已部署实例升级时后端会拒绝启动。
+const wantPlugins = changed.some((file) => file.startsWith("plugin-packages/") || file.startsWith("custom-plugins/"));
+if (wantPlugins) tasks.push({ name: "plugins:version-bump", cwd: ROOT, cmd: "node", args: ["plugin-packages/check-version-bumps.mjs", "--base", base, "--head", formatHead], weight: 5 });
+else skipped.push("插件包版本检查（没有 plugin-packages/ 改动）");
+
 if (!tasks.length) {
     console.log("没有需要运行的检查。");
     process.exit(0);

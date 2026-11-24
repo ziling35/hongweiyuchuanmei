@@ -332,3 +332,60 @@ cd <repo>
 ```
 
 Windows 上执行策略若禁止脚本，用 `powershell -ExecutionPolicy Bypass -File .\.local\start-dev.ps1`。仓库自带的 `scripts/start-local.ps1` 会调用 `bun`（`bun.ps1` 被策略拦），更容易失败。
+
+---
+
+## 9. 升级后 backend 重启循环（插件包摘要冲突）
+
+现象：第 2 节的脚本在 `up -d` 阶段失败，`migrate` 正常（`{"current":111,"expected":111,"ready":true}`），但 backend 反复重启：
+
+```bash
+cd /www/wwwroot/<站点>
+docker inspect <项目名>-backend-1 --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} restarts={{.RestartCount}}'
+docker compose --env-file .env -f docker-compose.deploy.yml logs --tail=200 backend
+```
+
+日志里反复出现 `请求插件 <id>@<version> 已安装，但包摘要不同；请发布新版本`。
+
+原因：后端启动时用镜像内置的 `*.yingce-plugin` 覆盖插件登记表（`/data/plugin_registry.json`）。同一版本号的包内容变了（sha256 不同）会被判定为不可信并返回错误，`ValidateRuntime()` 失败后进程 `exit 1`。数据库和迁移都没有问题，不要重跑更新脚本。
+
+### 9.1 处置 A：删掉旧登记记录（保留新版本）
+
+```bash
+cd /www/wwwroot/<站点>
+docker volume ls | grep backend-data          # 得到 <项目名>_backend-data
+
+# 备份并取出登记表
+docker run --rm -v <项目名>_backend-data:/data -v "$PWD/backups:/out" alpine \
+  sh -c 'cp /data/plugin_registry.json /out/plugin_registry.json.$(date +%Y%m%d-%H%M%S).bak &&
+         cp /data/plugin_registry.json /out/plugin_registry.edit.json'
+
+# 删掉冲突插件的那条记录（把 kunrou-images 换成日志里的 id）
+python3 - <<'PY'
+import json
+p = '/www/wwwroot/<站点>/backups/plugin_registry.edit.json'
+records = json.load(open(p))
+json.dump([r for r in records if r.get('id') != 'kunrou-images'], open(p, 'w'), ensure_ascii=False, indent=2)
+PY
+
+docker run --rm -v <项目名>_backend-data:/data -v "$PWD/backups:/in" alpine \
+  sh -c 'cp /in/plugin_registry.edit.json /data/plugin_registry.json'
+docker compose --env-file .env -f docker-compose.deploy.yml up -d backend web
+curl -s http://127.0.0.1:3000/api/health
+```
+
+记录的启用/禁用状态会重置为包默认值，需要时到管理后台 → 插件再调一次。
+
+### 9.2 处置 B：回滚
+
+按第 2 节的回滚命令还原 `.env`；本次迁移已经执行且新旧版本 schema 都是 111 时，不需要还原数据库。
+
+### 9.3 根治
+
+给该插件 bump `manifest.json` 的 `version` 后重新发版，已部署实例就会把旧包记入历史并正常升级。发布纪律与推送前校验见 [FORK_MAINTENANCE.md](FORK_MAINTENANCE.md) 第 7 节第 6、7 条。
+
+自建插件（`kunrou-images`、`lumlum-video`、`volcengine-ark-seedream-suite`）已从内置目录移到 `custom-plugins/`，此后**不再随镜像发布**：
+
+- 升级时若旧登记表里还有它们的旧版本，按 9.1 删掉那几条记录；
+- 然后在管理后台 → 插件 → 导入插件，上传 `custom-plugins/<id>.yingce-plugin`；
+- 以后改这些插件只需重新打包导入（`node custom-plugins/build.mjs <id>`），不用重建镜像。
