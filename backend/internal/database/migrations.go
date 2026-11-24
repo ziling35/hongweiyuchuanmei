@@ -418,6 +418,7 @@ var schemaMigrations = []migration{
 		}
 		return nil
 	}},
+	{version: 113, name: "reference_image_billing", checksum: "sha256:reference-image-billing-v113-20261201", apply: migrateReferenceImageBilling},
 }
 
 func migrateAPILogGenerationContent(tx *gorm.DB) error {
@@ -453,6 +454,31 @@ func migrateReferenceVideoCostPrice(tx *gorm.DB) error {
 	return tx.Model(&model.ChannelModelPriceTier{}).
 		Where("billing_mode = ? AND channel_model_id IN (?) AND cost_reference_video_output_token_price_microcredits = ?", "token", enabled, 0).
 		Update("cost_reference_video_output_token_price_microcredits", gorm.Expr("cost_output_token_price_microcredits")).Error
+}
+
+// migrateReferenceImageBilling 为视频价格档增加参考图计费：价格档与成本档各加单价和免费张数，
+// 账单增加参考图快照。新列全部为 0，既有模型的报价与扣费结果不变；管理员按需在模型编辑里开启。
+func migrateReferenceImageBilling(tx *gorm.DB) error {
+	for _, target := range []struct {
+		entity  any
+		columns []string
+	}{
+		{&model.ChannelModelPriceTier{}, []string{"reference_image_unit_price_microcredits", "free_reference_images", "cost_reference_image_unit_price_microcredits", "cost_free_reference_images"}},
+		{&model.BillingOrder{}, []string{"reference_images", "reference_image_billed_images", "reference_image_amount_microcredits", "reference_image_unit_price_microcredits", "free_reference_images"}},
+	} {
+		if !tx.Migrator().HasTable(target.entity) {
+			continue
+		}
+		for _, column := range target.columns {
+			if tx.Migrator().HasColumn(target.entity, column) {
+				continue
+			}
+			if err := tx.Migrator().AddColumn(target.entity, column); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // migrateReferenceVideoBilling 增加视频模型的“参考视频计费”开关、价格档的带参考视频价格和账单的参考视频快照。

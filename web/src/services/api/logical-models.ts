@@ -166,6 +166,13 @@ export type LogicalModelQuote = {
         billedSeconds: number;
         estimated: boolean;
     };
+    /** 仅命中参考图计费的价格档时返回：免费张数以内不计费，超出部分按张累加。 */
+    referenceImages?: {
+        count: number;
+        freeImages: number;
+        billedImages: number;
+        amountMicrocredits: number;
+    };
 };
 
 export type ModelQuoteRequest = {

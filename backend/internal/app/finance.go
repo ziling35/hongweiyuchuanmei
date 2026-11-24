@@ -798,6 +798,14 @@ func (s *Service) newBillingOrderWithPriceTierAt(pricedAt time.Time, userID stri
 	if err != nil {
 		return nil, err
 	}
+	var referenceImages, referenceImageBilledImages, referenceImageAmount int64
+	if capability == "video" && len(intents) > 0 {
+		referenceImages = int64(intents[0].Inputs["image"])
+		if referenceImageBilledImages, referenceImageAmount, err = referenceImageCharge(prices.ReferenceImage, referenceImages, tier.FreeReferenceImages, multiplierBPS); err != nil {
+			return nil, err
+		}
+		amount += referenceImageAmount
+	}
 	var videoFormulaTokens int64
 	if tier.BillingMode == "token" && tokenEstimate.Video != nil {
 		videoFormulaTokens = tokenEstimate.Video.FormulaTokens
@@ -811,11 +819,16 @@ func (s *Service) newBillingOrderWithPriceTierAt(pricedAt time.Time, userID stri
 		ReservedAmountMicrocredits: amount, InputTokenPriceMicrocredits: prices.Input,
 		OutputTokenPriceMicrocredits: prices.Output, CachedTokenPriceMicrocredits: prices.Cached, CacheWriteTokenPriceMicrocredits: prices.CacheWrite,
 		UserGroup: pricing.GroupCode, PriceCurrency: pricing.Currency, CurrencyRateMicrocredits: pricing.RateMicrocredits,
-		VideoFormulaTokens:   videoFormulaTokens,
-		ReferenceVideoCount:  references.Count,
-		ReferenceVideoMillis: referenceMillis,
-		ReferenceVideoBilled: referenceBilled,
-		Status:               model.BillingStatusReserved,
+		VideoFormulaTokens:                  videoFormulaTokens,
+		ReferenceVideoCount:                 references.Count,
+		ReferenceVideoMillis:                referenceMillis,
+		ReferenceVideoBilled:                referenceBilled,
+		ReferenceImages:                     referenceImages,
+		ReferenceImageBilledImages:          referenceImageBilledImages,
+		ReferenceImageUnitPriceMicrocredits: prices.ReferenceImage,
+		FreeReferenceImages:                 tier.FreeReferenceImages,
+		ReferenceImageAmountMicrocredits:    referenceImageAmount,
+		Status:                              model.BillingStatusReserved,
 	}
 	if order.TokenPriceRulesJSON, err = model.EncodeBillingTokenPriceRules(tokenRules); err != nil {
 		return nil, err
@@ -867,7 +880,7 @@ func tokenPriceRuleSnapshot(pricing groupPricing, capability string, tier *model
 
 // tierCreditPrices 是换算为微积分后的价格档单价。
 type tierCreditPrices struct {
-	Unit, Input, Output, Cached, CacheWrite int64
+	Unit, Input, Output, Cached, CacheWrite, ReferenceImage int64
 }
 
 // groupTierPrices 把价格档按模型计价货币和用户分组换算成微积分，并合成全局积分策略倍率与分组倍率。
@@ -900,6 +913,7 @@ func groupTierPricesWithPolicy(policy CreditPolicy, access *userGroupAccess, ite
 		{tier.OutputTokenPriceMicrocredits, &prices.Output},
 		{tier.CachedTokenPriceMicrocredits, &prices.Cached},
 		{tier.CacheWriteTokenPriceMicrocredits, &prices.CacheWrite},
+		{tier.ReferenceImageUnitPriceMicrocredits, &prices.ReferenceImage},
 	} {
 		converted, convertErr := pricing.convertPrice(pair.source)
 		if convertErr != nil {

@@ -121,6 +121,7 @@ func batchTierRequest(tier model.ChannelModelPriceTier) ChannelModelPriceTierReq
 		CacheWriteTokenPriceMicrocredits: tier.CacheWriteTokenPriceMicrocredits,
 		TokenPriceRulesEnabled:           tier.TokenPriceRulesEnabled, TokenPriceRules: tier.TokenPriceRules,
 		ReferenceVideoUnitPriceMicrocredits: tier.ReferenceVideoUnitPriceMicrocredits, ReferenceVideoOutputTokenPriceMicrocredits: tier.ReferenceVideoOutputTokenPriceMicrocredits,
+		ReferenceImageUnitPriceMicrocredits: tier.ReferenceImageUnitPriceMicrocredits, FreeReferenceImages: tier.FreeReferenceImages,
 		PriceConfigured: tier.PriceConfigured, Enabled: &enabled,
 	}
 }

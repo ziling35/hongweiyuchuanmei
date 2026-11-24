@@ -94,3 +94,26 @@ describe("channel model price tier defaults", () => {
         expect(priceTierPayloadFromForm("video", { ...tier, outputTokenPrice: 0 }, "seedance").outputTokenPriceMicrocredits).toBe(0);
     });
 });
+
+describe("reference image billing", () => {
+    test("keeps the per-image price and free quota for video tiers only", () => {
+        const tier = { ...defaultPriceTier(), billingMode: "per_second" as const, unitPrice: 1, referenceImageUnitPrice: 3, freeReferenceImages: 2 };
+        const payload = priceTierPayloadFromForm("video", tier, "seedance");
+        expect(payload.referenceImageUnitPriceMicrocredits).toBe(3_000_000);
+        expect(payload.freeReferenceImages).toBe(2);
+        expect(priceTierToForm(payload as ChannelModelPriceTier)).toMatchObject({ referenceImageUnitPrice: 3, freeReferenceImages: 2 });
+
+        // 图片模型不提交参考图计费字段，后端也会拒绝。
+        const image = priceTierPayloadFromForm("image", { ...tier, billingMode: "fixed_request" as const }, "gpt-image-2");
+        expect(image.referenceImageUnitPriceMicrocredits).toBe(0);
+        expect(image.freeReferenceImages).toBe(0);
+    });
+
+    test("rejects an out-of-range free quota or a negative per-image price", () => {
+        const tier = { ...defaultPriceTier(), billingMode: "per_second" as const, unitPrice: 1, referenceImageUnitPrice: 3, freeReferenceImages: 2 };
+        expect(() => priceTierPayloadFromForm("video", { ...tier, freeReferenceImages: 129 }, "seedance")).toThrow("价格档");
+        expect(() => priceTierPayloadFromForm("video", { ...tier, referenceImageUnitPrice: -1 }, "seedance")).toThrow("价格档");
+        // 单价 0 表示不按参考图计费，仍可保存。
+        expect(priceTierPayloadFromForm("video", { ...tier, referenceImageUnitPrice: 0 }, "seedance")).toMatchObject({ referenceImageUnitPriceMicrocredits: 0 });
+    });
+});

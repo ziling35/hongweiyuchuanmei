@@ -75,7 +75,7 @@ func reserveBillingOrder(tx *gorm.DB, order *model.BillingOrder) error {
 		Model:                      order.Model,
 		ChannelID:                  order.ChannelID,
 		Scene:                      order.Scene,
-		Note:                       referenceVideoLedgerNote(*order),
+		Note:                       referenceMediaLedgerNote(*order),
 	}).Error
 }
 
@@ -96,6 +96,25 @@ func referenceVideoLedgerNote(order model.BillingOrder) string {
 		seconds = fmt.Sprintf("%d", order.ReferenceVideoMillis/1000)
 	}
 	return "参考视频 " + seconds + " 秒" + status
+}
+
+// referenceMediaLedgerNote 把参考图与参考视频的计费状态一起写进流水，便于人工对账。
+func referenceMediaLedgerNote(order model.BillingOrder) string {
+	return joinLedgerNotes(referenceImageLedgerNote(order), referenceVideoLedgerNote(order))
+}
+
+// referenceImageLedgerNote 只对命中参考图计费的价格档写出说明；未开启参考图计费时为空。
+func referenceImageLedgerNote(order model.BillingOrder) string {
+	if order.ReferenceImages <= 0 || order.ReferenceImageUnitPriceMicrocredits <= 0 {
+		return ""
+	}
+	if order.ReferenceImageBilledImages <= 0 {
+		return fmt.Sprintf("参考图 %d 张未超出免费额度", order.ReferenceImages)
+	}
+	if order.FreeReferenceImages > 0 {
+		return fmt.Sprintf("参考图 %d 张（含免费 %d 张），计费 %d 张", order.ReferenceImages, order.FreeReferenceImages, order.ReferenceImageBilledImages)
+	}
+	return fmt.Sprintf("参考图 %d 张已计费", order.ReferenceImageBilledImages)
 }
 
 func joinLedgerNotes(notes ...string) string {
@@ -449,7 +468,7 @@ func (r *Repository) settleBillingOrder(id string, providerRequestID string, aud
 			if err := tx.Create(&model.CreditLedgerEntry{ID: newRepositoryID(), UserID: order.UserID, AccountID: order.BillingAccountID, TeamID: order.TeamID, MembershipID: order.MembershipID, Type: model.CreditLedgerConsume,
 				AmountMicrocredits: -actual, AvailableDeltaMicrocredits: -supplement, ReservedDeltaMicrocredits: -reserved,
 				AvailableAfterMicrocredits: account.AvailableMicrocredits, ReservedAfterMicrocredits: account.ReservedMicrocredits,
-				BillingOrderID: order.ID, Model: order.Model, ChannelID: order.ChannelID, Scene: order.Scene, Note: joinLedgerNotes(consumeNote, referenceVideoLedgerNote(order))}).Error; err != nil {
+				BillingOrderID: order.ID, Model: order.Model, ChannelID: order.ChannelID, Scene: order.Scene, Note: joinLedgerNotes(consumeNote, referenceMediaLedgerNote(order))}).Error; err != nil {
 				return err
 			}
 			if refund > 0 {
@@ -486,6 +505,10 @@ func (r *Repository) settleBillingOrder(id string, providerRequestID string, aud
 			if err != nil {
 				return err
 			}
+			if extra := order.ReferenceImageAmountMicrocredits; extra < 0 || extra > (1<<63-1)-actual {
+				return errors.New("参考图计费快照无效，需核对费用")
+			}
+			actual += order.ReferenceImageAmountMicrocredits
 			if billingChargeLimitApplies(order) && actual > order.ChargeLimitMicrocredits {
 				return errors.New(mediaLabel + "实际费用超过本次授权上限，需人工核对")
 			}
@@ -529,7 +552,7 @@ func (r *Repository) settleBillingOrder(id string, providerRequestID string, aud
 			if supplement > 0 {
 				note += "，已补扣差额"
 			}
-			note = joinLedgerNotes(note, referenceVideoLedgerNote(order))
+			note = joinLedgerNotes(note, referenceMediaLedgerNote(order))
 			if err := tx.Create(&model.CreditLedgerEntry{ID: newRepositoryID(), UserID: order.UserID, AccountID: order.BillingAccountID, TeamID: order.TeamID, MembershipID: order.MembershipID, Type: model.CreditLedgerConsume,
 				AmountMicrocredits: -actual, AvailableDeltaMicrocredits: -supplement, ReservedDeltaMicrocredits: -reserved,
 				AvailableAfterMicrocredits: account.AvailableMicrocredits, ReservedAfterMicrocredits: account.ReservedMicrocredits,
@@ -584,7 +607,7 @@ func (r *Repository) settleBillingOrder(id string, providerRequestID string, aud
 			Model:                      order.Model,
 			ChannelID:                  order.ChannelID,
 			Scene:                      order.Scene,
-			Note:                       referenceVideoLedgerNote(order),
+			Note:                       referenceMediaLedgerNote(order),
 		}).Error
 	})
 	if err != nil && observedUsage != nil {
@@ -935,5 +958,10 @@ func tokenUsageAmount(order model.BillingOrder, usage *BillingUsage) (int64, int
 	if err != nil {
 		return 0, 0, errors.New("invalid token usage amount")
 	}
+	// 参考图费用在下单时已按销售倍率取整并锁进快照，与 Token 实际用量无关，结算直接叠加。
+	if extra := order.ReferenceImageAmountMicrocredits; extra < 0 || extra > (1<<63-1)-amount {
+		return 0, 0, errors.New("invalid reference image amount")
+	}
+	amount += order.ReferenceImageAmountMicrocredits
 	return amount, rule, nil
 }

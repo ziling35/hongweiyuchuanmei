@@ -111,14 +111,18 @@ type ChannelModelPriceTier struct {
 	TokenPriceRules        []TokenPriceRule `json:"tokenPriceRules" gorm:"serializer:json;type:text;not null;default:'[]'"`
 	// 带参考视频的价格：模型开启 ReferenceVideoBilling 且请求挂了参考视频时替代 UnitPrice（按秒）
 	// 或 OutputTokenPrice（Token）；未开启时不使用。
-	ReferenceVideoUnitPriceMicrocredits        int64          `json:"referenceVideoUnitPriceMicrocredits" gorm:"not null;default:0"`
-	ReferenceVideoOutputTokenPriceMicrocredits int64          `json:"referenceVideoOutputTokenPriceMicrocredits" gorm:"not null;default:0"`
-	PriceConfigured                            bool           `json:"priceConfigured" gorm:"index"`
-	Enabled                                    bool           `json:"enabled" gorm:"index"`
-	PriceVersion                               int64          `json:"priceVersion"`
-	CreatedAt                                  time.Time      `json:"createdAt"`
-	UpdatedAt                                  time.Time      `json:"updatedAt"`
-	DeletedAt                                  gorm.DeletedAt `json:"-" gorm:"index"`
+	ReferenceVideoUnitPriceMicrocredits        int64 `json:"referenceVideoUnitPriceMicrocredits" gorm:"not null;default:0"`
+	ReferenceVideoOutputTokenPriceMicrocredits int64 `json:"referenceVideoOutputTokenPriceMicrocredits" gorm:"not null;default:0"`
+	// 参考图计费：视频模型按输入参考图张数累加。免费张数以内不计费，超出部分每张按
+	// ReferenceImageUnitPriceMicrocredits 计一次；单价为 0 表示不按参考图计费。
+	ReferenceImageUnitPriceMicrocredits int64          `json:"referenceImageUnitPriceMicrocredits" gorm:"not null;default:0"`
+	FreeReferenceImages                 int32          `json:"freeReferenceImages" gorm:"not null;default:0"`
+	PriceConfigured                     bool           `json:"priceConfigured" gorm:"index"`
+	Enabled                             bool           `json:"enabled" gorm:"index"`
+	PriceVersion                        int64          `json:"priceVersion"`
+	CreatedAt                           time.Time      `json:"createdAt"`
+	UpdatedAt                           time.Time      `json:"updatedAt"`
+	DeletedAt                           gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type ApiCallLog struct {

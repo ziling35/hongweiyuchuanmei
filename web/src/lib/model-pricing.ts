@@ -106,6 +106,13 @@ export function modelQuoteDescription(quote: LogicalModelQuote) {
     const descriptions = [`${quote.estimated ? "预计" : "本次"}消耗 ${amount} 积分`];
     const breakdown = referenceVideoQuoteBreakdown(quote.referenceVideo);
     if (breakdown) descriptions.push(breakdown);
+    if (quote.referenceImages) {
+        const reference = quote.referenceImages;
+        const imageAmount = (reference.amountMicrocredits / 1_000_000).toLocaleString("zh-CN", { maximumFractionDigits: 6 });
+        descriptions.push(
+            reference.billedImages > 0 ? `参考图 ${reference.count} 张${reference.freeImages > 0 ? `（前 ${reference.freeImages} 张免费）` : ""}，计费 ${reference.billedImages} 张共 ${imageAmount} 积分` : `参考图 ${reference.count} 张未超出免费额度`,
+        );
+    }
     const estimate = quote.videoTokenEstimate;
     if (estimate) {
         const marginBps = estimate.reservationMarginBasisPoints ?? estimate.reservationMarginPercent * 100;

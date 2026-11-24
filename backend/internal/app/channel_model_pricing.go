@@ -195,5 +195,7 @@ func applyChannelModelTierPrices(tier *model.ChannelModelPriceTier, capability s
 		CachedTokenPriceMicrocredits: tier.CachedTokenPriceMicrocredits, CacheWriteTokenPriceMicrocredits: tier.CacheWriteTokenPriceMicrocredits,
 		ReferenceVideoUnitPriceMicrocredits:        tier.ReferenceVideoUnitPriceMicrocredits,
 		ReferenceVideoOutputTokenPriceMicrocredits: tier.ReferenceVideoOutputTokenPriceMicrocredits,
+		ReferenceImageUnitPriceMicrocredits:        tier.ReferenceImageUnitPriceMicrocredits,
+		FreeReferenceImages:                        tier.FreeReferenceImages,
 	})
 }

@@ -101,21 +101,30 @@ type BillingOrder struct {
 	// VideoFormulaTokens 固化提交时的视频公式用量，不含预授权余量；旧订单保持 0，不反推历史用量。
 	VideoFormulaTokens int64 `json:"videoFormulaTokens" gorm:"not null;default:0"`
 	// ReferenceVideo* 固化提交时挂载的参考视频：数量、计入或记录的总毫秒数，以及是否按带参考视频价格计费。
-	ReferenceVideoCount  int           `json:"referenceVideoCount" gorm:"not null;default:0"`
-	ReferenceVideoMillis int64         `json:"referenceVideoMillis" gorm:"not null;default:0"`
-	ReferenceVideoBilled bool          `json:"referenceVideoBilled" gorm:"not null;default:false"`
-	UsageSource          string        `json:"usageSource,omitempty" gorm:"size:32;not null;default:''"`
-	UsageAvailable       bool          `json:"usageAvailable"`
-	Status               BillingStatus `json:"status" gorm:"index;size:24"`
-	ProviderRequestID    string        `json:"providerRequestId,omitempty" gorm:"index;size:160"`
-	Error                string        `json:"error,omitempty" gorm:"size:1000"`
-	ResolvedBy           string        `json:"resolvedBy,omitempty" gorm:"index;size:36"`
-	ResolutionNote       string        `json:"resolutionNote,omitempty" gorm:"size:500"`
-	StartedAt            *time.Time    `json:"startedAt"`
-	SettledAt            *time.Time    `json:"settledAt"`
-	RefundedAt           *time.Time    `json:"refundedAt"`
-	CreatedAt            time.Time     `json:"createdAt" gorm:"index"`
-	UpdatedAt            time.Time     `json:"updatedAt"`
+	ReferenceVideoCount  int   `json:"referenceVideoCount" gorm:"not null;default:0"`
+	ReferenceVideoMillis int64 `json:"referenceVideoMillis" gorm:"not null;default:0"`
+	ReferenceVideoBilled bool  `json:"referenceVideoBilled" gorm:"not null;default:false"`
+	// ReferenceImages 固化提交时的输入参考图张数；BilledImages 是超出免费额度、真正计费的张数；
+	// ReferenceImageUnitPriceMicrocredits / FreeReferenceImages 固化下单时的参考图单价与免费张数，
+	// 报价与流水据此还原“免费 N 张、本次计费 M 张”，不再反查价格档。
+	ReferenceImageUnitPriceMicrocredits int64 `json:"referenceImageUnitPriceMicrocredits" gorm:"not null;default:0"`
+	FreeReferenceImages                 int32 `json:"freeReferenceImages" gorm:"not null;default:0"`
+	// AmountMicrocredits 是这部分按销售倍率取整后的费用，结算与成本都直接读快照，不再反查价格档。
+	ReferenceImages                  int64         `json:"referenceImages" gorm:"not null;default:0"`
+	ReferenceImageBilledImages       int64         `json:"referenceImageBilledImages" gorm:"not null;default:0"`
+	ReferenceImageAmountMicrocredits int64         `json:"referenceImageAmountMicrocredits" gorm:"not null;default:0"`
+	UsageSource                      string        `json:"usageSource,omitempty" gorm:"size:32;not null;default:''"`
+	UsageAvailable                   bool          `json:"usageAvailable"`
+	Status                           BillingStatus `json:"status" gorm:"index;size:24"`
+	ProviderRequestID                string        `json:"providerRequestId,omitempty" gorm:"index;size:160"`
+	Error                            string        `json:"error,omitempty" gorm:"size:1000"`
+	ResolvedBy                       string        `json:"resolvedBy,omitempty" gorm:"index;size:36"`
+	ResolutionNote                   string        `json:"resolutionNote,omitempty" gorm:"size:500"`
+	StartedAt                        *time.Time    `json:"startedAt"`
+	SettledAt                        *time.Time    `json:"settledAt"`
+	RefundedAt                       *time.Time    `json:"refundedAt"`
+	CreatedAt                        time.Time     `json:"createdAt" gorm:"index"`
+	UpdatedAt                        time.Time     `json:"updatedAt"`
 }
 
 type RedeemBatch struct {

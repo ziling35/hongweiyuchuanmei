@@ -13,6 +13,9 @@ type CreditCostPricing struct {
 	// 带参考视频的成本价，仅视频模型开启参考视频计费且请求挂参考视频时使用：按秒档替代 Unit，Token 档替代 Output。
 	ReferenceVideoUnitPriceMicrocredits        int64 `json:"referenceVideoUnitPriceMicrocredits" gorm:"not null;default:0"`
 	ReferenceVideoOutputTokenPriceMicrocredits int64 `json:"referenceVideoOutputTokenPriceMicrocredits" gorm:"not null;default:0"`
+	// 参考图的成本价：与销售价同口径，按超出免费张数的张数累加，不套用销售倍率。
+	ReferenceImageUnitPriceMicrocredits int64 `json:"referenceImageUnitPriceMicrocredits" gorm:"not null;default:0"`
+	FreeReferenceImages                 int32 `json:"freeReferenceImages" gorm:"not null;default:0"`
 }
 
 // BillingCostSnapshot 独立于销售价格，切换供应线路时始终更新为实际执行线路的成本。

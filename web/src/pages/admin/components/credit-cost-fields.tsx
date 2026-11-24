@@ -46,13 +46,25 @@ export function CreditCostFields({
             {configured && billingMode === "image_usage" ? (
                 <ImageUsagePriceFields index={index} form={form} unit="积分" cost />
             ) : configured ? (
-                <div className={billingMode === "token" && !isVideo ? "admin-price-tier-cost-grid admin-price-tier-cost-token-grid" : "admin-price-tier-cost-grid"}>
-                    {fields.map(([field, label]) => (
-                        <Form.Item key={field} className="mb-0" name={[index, field]} label={label} rules={[{ required: true, message: "请输入积分成本价" }]}>
-                            <InputNumber className="w-full" min={0} max={1_000_000} precision={6} step={0.1} />
-                        </Form.Item>
-                    ))}
-                </div>
+                <>
+                    <div className={billingMode === "token" && !isVideo ? "admin-price-tier-cost-grid admin-price-tier-cost-token-grid" : "admin-price-tier-cost-grid"}>
+                        {fields.map(([field, label]) => (
+                            <Form.Item key={field} className="mb-0" name={[index, field]} label={label} rules={[{ required: true, message: "请输入积分成本价" }]}>
+                                <InputNumber className="w-full" min={0} max={1_000_000} precision={6} step={0.1} />
+                            </Form.Item>
+                        ))}
+                    </div>
+                    {isVideo ? (
+                        <div className="admin-price-tier-cost-grid">
+                            <Form.Item className="mb-0" name={[index, "costReferenceImageUnitPrice"]} label="参考图 积分 / 张">
+                                <InputNumber className="w-full" min={0} max={1_000_000} precision={6} step={0.1} />
+                            </Form.Item>
+                            <Form.Item className="mb-0" name={[index, "costFreeReferenceImages"]} label="免费参考图张数">
+                                <InputNumber className="w-full" min={0} max={128} precision={0} />
+                            </Form.Item>
+                        </div>
+                    ) : null}
+                </>
             ) : null}
         </section>
     );

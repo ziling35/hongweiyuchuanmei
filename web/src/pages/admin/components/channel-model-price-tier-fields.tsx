@@ -252,6 +252,21 @@ export function PriceTierFields({
                                 </Form.Item>
                             </div>
                         ) : null}
+                        {isVideo ? (
+                            <div className="admin-price-tier-billing-grid">
+                                <Form.Item
+                                    className="admin-price-tier-unit-price mb-0"
+                                    name={[index, "referenceImageUnitPrice"]}
+                                    label={`参考图单价（${priceUnit} / 张）`}
+                                    tooltip="免费张数以外的每张输入参考图单独加价，0 表示不按参考图计费；按次、按秒、Token 三种计费方式都叠加这笔费用。"
+                                >
+                                    <InputNumber className="w-full" min={0} max={1_000_000} precision={6} step={0.1} />
+                                </Form.Item>
+                                <Form.Item className="admin-price-tier-unit-price mb-0" name={[index, "freeReferenceImages"]} label="免费参考图张数" tooltip="本次请求的输入参考图在此张数以内不额外收费，超出部分按参考图单价逐张累加。">
+                                    <InputNumber className="w-full" min={0} max={128} precision={0} />
+                                </Form.Item>
+                            </div>
+                        ) : null}
                         {isVideo && billingMode === "token" ? (
                             <div className="admin-price-tier-helper" role="note">
                                 <strong>视频 Token 计费</strong>

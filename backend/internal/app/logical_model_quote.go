@@ -19,6 +19,8 @@ type LogicalModelQuote struct {
 	VideoTokenEstimate *VideoTokenEstimate `json:"videoTokenEstimate,omitempty"`
 	// ReferenceVideo 仅在视频请求挂了参考视频时返回。
 	ReferenceVideo *QuoteReferenceVideo `json:"referenceVideo,omitempty"`
+	// ReferenceImages 仅在命中参考图计费的价格档时返回。
+	ReferenceImages *QuoteReferenceImages `json:"referenceImages,omitempty"`
 }
 
 type ImageQuote struct {
@@ -100,6 +102,14 @@ type QuoteReferenceVideo struct {
 	Estimated bool `json:"estimated"`
 }
 
+// QuoteReferenceImages 是参考图计费的报价构成：免费张数以内不计费，超出部分按张累加。
+type QuoteReferenceImages struct {
+	Count              int64 `json:"count"`
+	FreeImages         int64 `json:"freeImages"`
+	BilledImages       int64 `json:"billedImages"`
+	AmountMicrocredits int64 `json:"amountMicrocredits"`
+}
+
 func quoteReferenceVideo(order *model.BillingOrder, estimate tokenBillingEstimate) *QuoteReferenceVideo {
 	references := estimate.ReferenceVideos
 	// 按次计费与时长无关，没有“生成 N 秒 + 参考视频 M 秒”的构成可写。
@@ -142,6 +152,15 @@ func quoteFromOrder(logicalModelID string, order *model.BillingOrder, estimate t
 	quote.ReferenceVideo = quoteReferenceVideo(order, estimate)
 	if quote.ReferenceVideo != nil && quote.ReferenceVideo.Estimated {
 		quote.Estimated = true
+	}
+	// 参考图计费是下单时锁定的固定加项，报价直接回显快照，便于创作端写出“含 X 张参考图”。
+	if order.ReferenceImageUnitPriceMicrocredits > 0 && order.ReferenceImages > 0 {
+		quote.ReferenceImages = &QuoteReferenceImages{
+			Count:              order.ReferenceImages,
+			FreeImages:         int64(order.FreeReferenceImages),
+			BilledImages:       order.ReferenceImageBilledImages,
+			AmountMicrocredits: order.ReferenceImageAmountMicrocredits,
+		}
 	}
 	return quote
 }

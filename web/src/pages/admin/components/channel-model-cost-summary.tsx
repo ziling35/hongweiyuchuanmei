@@ -45,7 +45,7 @@ function priceLabel(tier: ChannelModelPriceTier, capability: ChannelModel["capab
             </div>
         );
     }
-    return modelPriceFields(tier, capability).map(({ key, label, unit }) => {
+    const rows = modelPriceFields(tier, capability).map(({ key, label, unit }) => {
         const cost = tier.costPricing?.configured ? tier.costPricing[key] : undefined;
         const sale = tier.priceConfigured ? tier[key] : undefined;
         return (
@@ -59,6 +59,19 @@ function priceLabel(tier: ChannelModelPriceTier, capability: ChannelModel["capab
             </div>
         );
     });
+    // 参考图计费是价格档上的独立加项，与输出侧单价分开显示。
+    if ((tier.referenceImageUnitPriceMicrocredits || 0) <= 0) return rows;
+    const referenceImageCost = tier.costPricing?.configured ? tier.costPricing.referenceImageUnitPriceMicrocredits : undefined;
+    return [
+        ...rows,
+        <div key="reference-image">
+            <span>
+                {tier.costPricing?.configured ? formatModelPrice(referenceImageCost) : "未配置成本"} / {formatModelPrice(tier.referenceImageUnitPriceMicrocredits)} {saleUnit} / 张参考图
+                {tier.freeReferenceImages ? `（前 ${tier.freeReferenceImages} 张免费）` : ""}
+            </span>
+            <span className="admin-model-cost-unit">超出免费张数的部分逐张累加</span>
+        </div>,
+    ];
 }
 
 export function specificationLabel(tier: ChannelModelPriceTier) {

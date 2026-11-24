@@ -130,6 +130,9 @@ export type ChannelModelPriceTier = {
     /** 带参考视频价格：按秒档使用每秒价，视频 Token 档使用 Token 价；模型未开启参考视频计费时不生效。 */
     referenceVideoUnitPriceMicrocredits?: number;
     referenceVideoOutputTokenPriceMicrocredits?: number;
+    /** 参考图计费（仅视频模型）：免费张数以内不计费，超出部分每张按参考图单价累加。 */
+    referenceImageUnitPriceMicrocredits?: number;
+    freeReferenceImages?: number;
     priceConfigured: boolean;
     enabled: boolean;
     priceVersion: number;
@@ -170,6 +173,9 @@ export type CreditCostPricing = {
     /** 带参考视频的成本价：按秒档为每秒成本，视频 Token 档为 Token 成本；模型未开启参考视频计费时不生效。 */
     referenceVideoUnitPriceMicrocredits?: number;
     referenceVideoOutputTokenPriceMicrocredits?: number;
+    /** 参考图的成本价：与销售价同口径，按超出免费张数的张数累加，不套销售倍率。 */
+    referenceImageUnitPriceMicrocredits?: number;
+    freeReferenceImages?: number;
 };
 
 export type ImagePricing = {

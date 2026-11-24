@@ -67,8 +67,11 @@ type ChannelModelPriceTierRequest struct {
 	// 带参考视频的价格，仅在模型开启参考视频计费时使用：按秒档用 Unit，Token 档用 OutputToken。
 	ReferenceVideoUnitPriceMicrocredits        int64 `json:"referenceVideoUnitPriceMicrocredits"`
 	ReferenceVideoOutputTokenPriceMicrocredits int64 `json:"referenceVideoOutputTokenPriceMicrocredits"`
-	PriceConfigured                            bool  `json:"priceConfigured"`
-	Enabled                                    *bool `json:"enabled"`
+	// 参考图计费：视频模型按输入参考图张数累加，免费张数以内不计费；单价 0 表示不按参考图计费。
+	ReferenceImageUnitPriceMicrocredits int64 `json:"referenceImageUnitPriceMicrocredits"`
+	FreeReferenceImages                 int32 `json:"freeReferenceImages"`
+	PriceConfigured                     bool  `json:"priceConfigured"`
+	Enabled                             *bool `json:"enabled"`
 }
 
 // AdminChannelModelFetchResult 是管理员从上游拉目录后的汇总：models 为去重后的标识，added 为本次新建条数。

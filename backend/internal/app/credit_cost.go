@@ -15,7 +15,7 @@ func validateCreditCostPricing(capability, billingMode string, cost model.Credit
 			return BadAuthRequest(err.Error())
 		}
 	}
-	for _, price := range []int64{cost.UnitPriceMicrocredits, cost.InputTokenPriceMicrocredits, cost.OutputTokenPriceMicrocredits, cost.CachedTokenPriceMicrocredits, cost.CacheWriteTokenPriceMicrocredits, cost.ReferenceVideoUnitPriceMicrocredits, cost.ReferenceVideoOutputTokenPriceMicrocredits} {
+	for _, price := range []int64{cost.UnitPriceMicrocredits, cost.InputTokenPriceMicrocredits, cost.OutputTokenPriceMicrocredits, cost.CachedTokenPriceMicrocredits, cost.CacheWriteTokenPriceMicrocredits, cost.ReferenceVideoUnitPriceMicrocredits, cost.ReferenceVideoOutputTokenPriceMicrocredits, cost.ReferenceImageUnitPriceMicrocredits} {
 		if price < 0 || price > 1_000_000_000_000 {
 			return BadAuthRequest("积分成本价必须在 0 到 1000000 积分之间")
 		}
@@ -88,6 +88,14 @@ func billingCreditCost(order model.BillingOrder) (*int64, error) {
 	}
 	if err != nil {
 		return nil, err
+	}
+	// 参考图成本按超出免费张数的张数单独累加：不套销售倍率，也不受输出计费方式影响。
+	if order.ReferenceImageBilledImages > 0 && cost.ReferenceImageUnitPriceMicrocredits > 0 {
+		imageCost, imageErr := creditAmount(cost.ReferenceImageUnitPriceMicrocredits, order.ReferenceImageBilledImages, 10_000)
+		if imageErr != nil {
+			return nil, imageErr
+		}
+		amount += imageCost
 	}
 	return &amount, nil
 }

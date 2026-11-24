@@ -132,7 +132,9 @@ func exportChannelModel(item model.ChannelModel) (SystemChannelExportModel, erro
 			TokenPriceRulesEnabled: tier.TokenPriceRulesEnabled, TokenPriceRules: tier.TokenPriceRules,
 			ReferenceVideoUnitPriceMicrocredits:        tier.ReferenceVideoUnitPriceMicrocredits,
 			ReferenceVideoOutputTokenPriceMicrocredits: tier.ReferenceVideoOutputTokenPriceMicrocredits,
-			PriceConfigured: tier.PriceConfigured, Enabled: &tierEnabled,
+			ReferenceImageUnitPriceMicrocredits:        tier.ReferenceImageUnitPriceMicrocredits,
+			FreeReferenceImages:                        tier.FreeReferenceImages,
+			PriceConfigured:                            tier.PriceConfigured, Enabled: &tierEnabled,
 		})
 	}
 	priceCurrency := firstNonEmpty(item.PriceCurrency, model.PriceCurrencyCredits)

@@ -261,9 +261,11 @@ func normalizeChannelModelPriceTiersWithIDs(req ChannelModelRequest, capability 
 			TokenPriceRules:                     rules,
 			ReferenceVideoUnitPriceMicrocredits: input.ReferenceVideoUnitPriceMicrocredits,
 			ReferenceVideoOutputTokenPriceMicrocredits: input.ReferenceVideoOutputTokenPriceMicrocredits,
-			PriceConfigured: input.PriceConfigured,
-			Enabled:         enabled,
-			PriceVersion:    1,
+			ReferenceImageUnitPriceMicrocredits:        input.ReferenceImageUnitPriceMicrocredits,
+			FreeReferenceImages:                        input.FreeReferenceImages,
+			PriceConfigured:                            input.PriceConfigured,
+			Enabled:                                    enabled,
+			PriceVersion:                               1,
 		})
 	}
 	// 同优先级时长区间不得相交：其他条件完全相同的两个档同时命中同一请求时，
@@ -516,12 +518,20 @@ func validateChannelModelTierPricing(capability string, protocol model.ChannelIn
 		return BadAuthRequest("Token 计费仅支持文本、视频和 EvoLink Qwen TTS 音频模型")
 	}
 	if input.UnitPriceMicrocredits < 0 || input.InputTokenPriceMicrocredits < 0 || input.OutputTokenPriceMicrocredits < 0 || input.CachedTokenPriceMicrocredits < 0 || input.CacheWriteTokenPriceMicrocredits < 0 ||
-		input.ReferenceVideoUnitPriceMicrocredits < 0 || input.ReferenceVideoOutputTokenPriceMicrocredits < 0 {
+		input.ReferenceVideoUnitPriceMicrocredits < 0 || input.ReferenceVideoOutputTokenPriceMicrocredits < 0 ||
+		input.ReferenceImageUnitPriceMicrocredits < 0 || input.CostPricing.ReferenceImageUnitPriceMicrocredits < 0 {
 		return BadAuthRequest("模型积分价格不能小于 0")
+	}
+	if input.FreeReferenceImages < 0 || input.FreeReferenceImages > 128 || input.CostPricing.FreeReferenceImages < 0 || input.CostPricing.FreeReferenceImages > 128 {
+		return BadAuthRequest("免费参考图张数必须在 0 到 128 之间")
 	}
 	if capability != "video" && (input.ReferenceVideoUnitPriceMicrocredits != 0 || input.ReferenceVideoOutputTokenPriceMicrocredits != 0 ||
 		input.CostPricing.ReferenceVideoUnitPriceMicrocredits != 0 || input.CostPricing.ReferenceVideoOutputTokenPriceMicrocredits != 0) {
 		return BadAuthRequest("只有视频模型可以配置带参考视频的价格")
+	}
+	if capability != "video" && (input.ReferenceImageUnitPriceMicrocredits != 0 || input.FreeReferenceImages != 0 ||
+		input.CostPricing.ReferenceImageUnitPriceMicrocredits != 0 || input.CostPricing.FreeReferenceImages != 0) {
+		return BadAuthRequest("只有视频模型可以配置参考图计费")
 	}
 	if billingMode == "token" {
 		return validateTokenPrices(capability, input.InputTokenPriceMicrocredits, input.OutputTokenPriceMicrocredits, input.CachedTokenPriceMicrocredits, input.CacheWriteTokenPriceMicrocredits)

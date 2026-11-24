@@ -127,6 +127,9 @@ export type PriceTierFormValues = {
     /** 带参考视频的每秒价格（按秒档）与视频 Token 价格（Token 档），仅模型开启参考视频计费时使用。 */
     referenceVideoUnitPrice: number | null;
     referenceVideoOutputTokenPrice: number | null;
+    /** 参考图计费（仅视频模型）：免费张数以内不计费，超出部分每张按参考图单价累加。 */
+    referenceImageUnitPrice: number | null;
+    freeReferenceImages: number;
     costConfigured: boolean;
     costUnitPrice: number;
     costInputTokenPrice: number;
@@ -136,6 +139,9 @@ export type PriceTierFormValues = {
     /** 带参考视频的成本价：按秒档为每秒成本，视频 Token 档为 Token 成本；仅模型开启参考视频计费时使用。 */
     costReferenceVideoUnitPrice: number;
     costReferenceVideoOutputTokenPrice: number;
+    /** 参考图的成本价与免费张数：与销售价同口径，不套销售倍率。 */
+    costReferenceImageUnitPrice: number;
+    costFreeReferenceImages: number;
     /** 文本 Token 档的分时与上下文价格。 */
     tokenRulesEnabled: boolean;
     tokenRules: TokenPriceRuleFormValues[];
@@ -165,6 +171,8 @@ export function defaultPriceTier(matchMode: PriceTierMatchMode = "default"): Pri
         cacheWriteTokenPrice: 0,
         referenceVideoUnitPrice: 0,
         referenceVideoOutputTokenPrice: 0,
+        referenceImageUnitPrice: 0,
+        freeReferenceImages: 0,
         costConfigured: false,
         costUnitPrice: 0,
         costInputTokenPrice: 0,
@@ -173,6 +181,8 @@ export function defaultPriceTier(matchMode: PriceTierMatchMode = "default"): Pri
         costCacheWriteTokenPrice: 0,
         costReferenceVideoUnitPrice: 0,
         costReferenceVideoOutputTokenPrice: 0,
+        costReferenceImageUnitPrice: 0,
+        costFreeReferenceImages: 0,
         tokenRulesEnabled: false,
         tokenRules: [],
         priceConfigured: true,
@@ -221,6 +231,8 @@ export function priceTierToForm(tier: ChannelModelPriceTier, image?: ImageCapabi
         cacheWriteTokenPrice: salePrice(tier.cacheWriteTokenPriceMicrocredits),
         referenceVideoUnitPrice: salePrice(tier.referenceVideoUnitPriceMicrocredits),
         referenceVideoOutputTokenPrice: salePrice(tier.referenceVideoOutputTokenPriceMicrocredits),
+        referenceImageUnitPrice: salePrice(tier.referenceImageUnitPriceMicrocredits),
+        freeReferenceImages: tier.freeReferenceImages ?? 0,
         costConfigured: tier.costPricing?.configured === true,
         costUnitPrice: (tier.costPricing?.unitPriceMicrocredits ?? 0) / 1_000_000,
         costInputTokenPrice: (tier.costPricing?.inputTokenPriceMicrocredits ?? 0) / 1_000_000,
@@ -229,6 +241,8 @@ export function priceTierToForm(tier: ChannelModelPriceTier, image?: ImageCapabi
         costCacheWriteTokenPrice: (tier.costPricing?.cacheWriteTokenPriceMicrocredits ?? 0) / 1_000_000,
         costReferenceVideoUnitPrice: (tier.costPricing?.referenceVideoUnitPriceMicrocredits ?? 0) / 1_000_000,
         costReferenceVideoOutputTokenPrice: (tier.costPricing?.referenceVideoOutputTokenPriceMicrocredits ?? 0) / 1_000_000,
+        costReferenceImageUnitPrice: (tier.costPricing?.referenceImageUnitPriceMicrocredits ?? 0) / 1_000_000,
+        costFreeReferenceImages: tier.costPricing?.freeReferenceImages ?? 0,
         tokenRulesEnabled: tier.tokenPriceRulesEnabled === true,
         tokenRules: (tier.tokenPriceRules || []).map(tokenPriceRuleToForm),
         priceConfigured: tier.priceConfigured,
@@ -324,6 +338,9 @@ export function priceTierPayloadFromForm(capability: ModelCapabilityChoice, tier
         // 后端只接受视频模型的带参考视频价格；保留未开启开关时的已填值，方便重新开启。
         referenceVideoUnitPriceMicrocredits: capability === "video" && tier.billingMode === "per_second" ? Math.round((tier.referenceVideoUnitPrice || 0) * 1_000_000) : 0,
         referenceVideoOutputTokenPriceMicrocredits: videoTokens ? Math.round((tier.referenceVideoOutputTokenPrice || 0) * 1_000_000) : 0,
+        // 参考图计费只对视频模型生效；单价 0 表示不按参考图计费，免费张数以内不产生费用。
+        referenceImageUnitPriceMicrocredits: capability === "video" ? Math.round((tier.referenceImageUnitPrice || 0) * 1_000_000) : 0,
+        freeReferenceImages: capability === "video" ? Math.round(tier.freeReferenceImages || 0) : 0,
         costPricing: {
             imagePricing: tier.costConfigured && tier.billingMode === "image_usage" ? imagePricingPayload(tier.costImagePricing) : undefined,
             configured: tier.costConfigured,
@@ -334,6 +351,8 @@ export function priceTierPayloadFromForm(capability: ModelCapabilityChoice, tier
             cacheWriteTokenPriceMicrocredits: videoTokens ? 0 : Math.round((tier.costCacheWriteTokenPrice || 0) * 1_000_000),
             referenceVideoUnitPriceMicrocredits: capability === "video" && tier.billingMode === "per_second" ? Math.round((tier.costReferenceVideoUnitPrice || 0) * 1_000_000) : 0,
             referenceVideoOutputTokenPriceMicrocredits: videoTokens ? Math.round((tier.costReferenceVideoOutputTokenPrice || 0) * 1_000_000) : 0,
+            referenceImageUnitPriceMicrocredits: capability === "video" ? Math.round((tier.costReferenceImageUnitPrice || 0) * 1_000_000) : 0,
+            freeReferenceImages: capability === "video" ? Math.round(tier.costFreeReferenceImages || 0) : 0,
         },
         priceConfigured: tier.priceConfigured !== false,
         enabled: tier.enabled !== false,
@@ -344,5 +363,10 @@ export function priceTierAmountsComplete(capability: ModelCapabilityChoice | und
     if (tier.billingMode === "image_usage") return capability === "image" && validImagePricingForm(tier.imagePricing);
     const prices = tier.billingMode !== "token" ? [tier.unitPrice] : capability === "video" ? [tier.outputTokenPrice] : [tier.inputTokenPrice, tier.outputTokenPrice, tier.cachedTokenPrice, tier.cacheWriteTokenPrice];
     if (capability === "video" && referenceVideoBilling && tier.billingMode !== "fixed_request") prices.push(tier.billingMode === "token" ? tier.referenceVideoOutputTokenPrice : tier.referenceVideoUnitPrice);
-    return prices.every((price) => typeof price === "number" && Number.isFinite(price) && price >= 0 && price <= 1_000_000);
+    if (!prices.every((price) => typeof price === "number" && Number.isFinite(price) && price >= 0 && price <= 1_000_000)) return false;
+    // 参考图单价非必填（0 表示不按参考图计费）；填了就必须是有效金额，免费张数必须是 0 到 128 的整数。
+    if (capability !== "video") return true;
+    const imagePrice = tier.referenceImageUnitPrice;
+    const freeImages = tier.freeReferenceImages ?? 0;
+    return (imagePrice === null || (Number.isFinite(imagePrice) && imagePrice >= 0 && imagePrice <= 1_000_000)) && Number.isInteger(freeImages) && freeImages >= 0 && freeImages <= 128;
 }
