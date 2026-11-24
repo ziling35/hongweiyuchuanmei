@@ -89,6 +89,12 @@ export type ImageCapabilityConfig = {
         presets?: ImageResolutionOption[];
         defaultTier?: string;
         defaultRatio?: string;
+        // 像素约束：缺省时回落到 16 / 655360 / 8294400 / 3840 / 3，与历史行为一致。
+        step?: number;
+        minPixels?: number;
+        maxPixels?: number;
+        maxEdge?: number;
+        maxRatio?: number;
     };
     resolution: { supported: boolean; values: string[]; default: string };
     quality: {

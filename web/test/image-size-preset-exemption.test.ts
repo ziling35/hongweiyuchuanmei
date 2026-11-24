@@ -46,3 +46,34 @@ test("预设只放行自己的像素，其它非 16 倍数尺寸照样拒绝", (
     expect(() => resolveImageRequestSize(profile, "medium", "1280x720")).not.toThrow();
     expect(() => resolveImageRequestSize(profile, "medium", "1000x1000")).toThrow("16 的倍数");
 });
+
+// 能力声明放宽约束后：1920x1080 与 800x800 都能直接手输，不再依赖预设豁免。
+function relaxedProfile() {
+    const profile = defaultModelCapabilityConfig("openai-image", "gpt-image-2");
+    const image = profile.image!;
+    image.size.parameter = "size";
+    image.size.values = [];
+    image.size.allowCustom = true;
+    image.size.presets = [];
+    image.size.step = 1;
+    image.size.minPixels = 640000;
+    return image;
+}
+
+test("声明 step=1 且放宽最小像素后，1920x1080 与 800x800 都可直接使用", () => {
+    const image = relaxedProfile();
+    expect(resolveImageRequestSize(image, "medium", "1920x1080")).toEqual({ parameter: "size", value: "1920x1080" });
+    expect(resolveImageRequestSize(image, "medium", "800x800")).toEqual({ parameter: "size", value: "800x800" });
+});
+
+test("未声明约束时仍按 16 倍数与 655360 下限校验", () => {
+    const image = profileWithPreset();
+    expect(() => resolveImageRequestSize(image, "medium", "800x800")).toThrow("655360");
+    expect(() => resolveImageRequestSize(image, "medium", "1920x1080")).toThrow("16 的倍数");
+});
+
+test("声明约束后仍拦截越界尺寸", () => {
+    const image = relaxedProfile();
+    expect(() => resolveImageRequestSize(image, "medium", "500x500")).toThrow("640000");
+    expect(() => resolveImageRequestSize(image, "medium", "8000x800")).toThrow();
+});

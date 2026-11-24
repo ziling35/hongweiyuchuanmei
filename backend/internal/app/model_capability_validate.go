@@ -38,6 +38,25 @@ func validateTextCapabilityConfig(value *TextCapabilityConfig) error {
 }
 
 func validateImageCapabilityConfig(value *ImageCapabilityConfig) error {
+	// 像素约束只允许收紧到合理范围，避免把全站校验关死或放大到上游必拒的规模。
+	if value.Size.Step != 0 && (value.Size.Step < 1 || value.Size.Step > 256) {
+		return BadAuthRequest("图片尺寸对齐步长需在 1 到 256 之间")
+	}
+	if value.Size.MinPixels != 0 && value.Size.MinPixels < 4096 {
+		return BadAuthRequest("图片最小像素不能小于 4096")
+	}
+	if value.Size.MaxPixels != 0 && value.Size.MaxPixels > 33554432 {
+		return BadAuthRequest("图片最大像素不能超过 33554432")
+	}
+	if value.Size.MinPixels > 0 && value.Size.MaxPixels > 0 && value.Size.MinPixels > value.Size.MaxPixels {
+		return BadAuthRequest("图片最小像素不能大于最大像素")
+	}
+	if value.Size.MaxEdge != 0 && (value.Size.MaxEdge < 64 || value.Size.MaxEdge > 16384) {
+		return BadAuthRequest("图片最长边限制需在 64 到 16384 之间")
+	}
+	if value.Size.MaxRatio != 0 && (value.Size.MaxRatio < 1 || value.Size.MaxRatio > 16) {
+		return BadAuthRequest("图片宽高比限制需在 1 到 16 之间")
+	}
 	if value.ResponseFormat.Supported {
 		switch strings.ToLower(strings.TrimSpace(value.ResponseFormat.Default)) {
 		case "", "auto":
@@ -95,7 +114,8 @@ func validateImageCapabilityConfig(value *ImageCapabilityConfig) error {
 		if preset.Width <= 0 || preset.Height <= 0 || max(preset.Width, preset.Height) > 100000 || preset.Size != fmt.Sprintf("%dx%d", preset.Width, preset.Height) {
 			return BadAuthRequest("图片预设像素尺寸无效")
 		}
-		if value.Parameters == nil && (max(preset.Width, preset.Height) > 3840 || max(preset.Width, preset.Height) > min(preset.Width, preset.Height)*3 || preset.Width*preset.Height < 655360 || preset.Width*preset.Height > 8294400) {
+		limits := value.Size.sizeLimits()
+		if value.Parameters == nil && (max(preset.Width, preset.Height) > limits.MaxEdge || float64(max(preset.Width, preset.Height)) > float64(min(preset.Width, preset.Height))*limits.MaxRatio || int64(preset.Width)*int64(preset.Height) < limits.MinPixels || int64(preset.Width)*int64(preset.Height) > limits.MaxPixels) {
 			return BadAuthRequest("图片预设像素尺寸无效")
 		}
 		// 容许像素取整误差，但不能将横屏尺寸标记成竖屏或其他比例。
@@ -533,7 +553,7 @@ func validateImageTask(profile *ImageCapabilityConfig, input canvasGenerationInp
 		return newModelCapabilityArgumentError("size", "unsupported_value", BadAuthRequest("图片尺寸不在当前模型支持范围内"))
 	}
 	if profile.Parameters == nil && profile.Size.Parameter == "size" && profile.Size.AllowCustom && strings.HasPrefix(modelName, "gpt-image-2") && !containsCapabilityString(profile.Size.Values, input.Config.Size) {
-		if err := validateGPTImage2CustomSize(input.Config.Size); err != nil {
+		if err := validateCustomImageSize(input.Config.Size, profile.Size.sizeLimits()); err != nil {
 			return newModelCapabilityArgumentError("size", "unsupported_value", err)
 		}
 	}
@@ -1016,7 +1036,8 @@ func validateModelPromptLength(label string, prompt string, maxChars int) error 
 	return BadAuthRequest(fmt.Sprintf("当前%s模型提示词最多 %d 个字符，完整提示词为 %d 个字符。系统不会自动截断，请精简当前输入、连线内容或技能上下文后重试", label, maxChars, actualChars))
 }
 
-func validateGPTImage2CustomSize(value string) error {
+// validateCustomImageSize 按能力声明的像素约束校验自定义尺寸；未声明的约束沿用历史默认值。
+func validateCustomImageSize(value string, limits imageSizeLimits) error {
 	value = strings.ToLower(strings.TrimSpace(strings.ReplaceAll(value, "×", "x")))
 	if value == "" || value == "auto" {
 		return nil
@@ -1030,18 +1051,18 @@ func validateGPTImage2CustomSize(value string) error {
 	if widthErr != nil || heightErr != nil || width <= 0 || height <= 0 {
 		return errors.New("图片尺寸必须是正整数")
 	}
-	if width%16 != 0 || height%16 != 0 {
-		return errors.New("图片尺寸宽高必须是 16 的倍数")
+	if limits.Step > 1 && (width%limits.Step != 0 || height%limits.Step != 0) {
+		return fmt.Errorf("图片尺寸宽高必须是 %d 的倍数", limits.Step)
 	}
-	if max(width, height) > 3840 {
-		return errors.New("图片尺寸最长边不能超过 3840px")
+	if max(width, height) > limits.MaxEdge {
+		return fmt.Errorf("图片尺寸最长边不能超过 %dpx", limits.MaxEdge)
 	}
-	if max(width, height) > min(width, height)*3 {
-		return errors.New("图片宽高比不能超过 3:1")
+	if float64(max(width, height)) > float64(min(width, height))*limits.MaxRatio {
+		return fmt.Errorf("图片宽高比不能超过 %v:1", limits.MaxRatio)
 	}
 	pixels := int64(width) * int64(height)
-	if pixels < 655360 || pixels > 8294400 {
-		return errors.New("图片总像素需在 655360 到 8294400 之间")
+	if pixels < limits.MinPixels || pixels > limits.MaxPixels {
+		return fmt.Errorf("图片总像素需在 %d 到 %d 之间", limits.MinPixels, limits.MaxPixels)
 	}
 	return nil
 }

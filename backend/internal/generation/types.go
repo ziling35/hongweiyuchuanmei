@@ -187,6 +187,12 @@ type ImageSizeConfig struct {
 	Default     string            `json:"default"`
 	AllowCustom bool              `json:"allowCustom"`
 	Presets     []ImageSizePreset `json:"presets,omitempty"`
+	// 像素约束：0 表示未声明，由宿主回落到默认值。
+	Step      int     `json:"step,omitempty"`
+	MinPixels int     `json:"minPixels,omitempty"`
+	MaxPixels int     `json:"maxPixels,omitempty"`
+	MaxEdge   int     `json:"maxEdge,omitempty"`
+	MaxRatio  float64 `json:"maxRatio,omitempty"`
 }
 
 type ImageSizePreset struct {

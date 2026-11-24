@@ -1,3 +1,4 @@
+import { ImageSizeLimitsFields } from "./image-size-limits-fields";
 import { ImageSizePresetsEditor } from "./image-size-presets-editor";
 import { imageSizeConfigWithPresets, imageSizePresets } from "@/lib/image-size-presets";
 import { Input, InputNumber } from "antd";
@@ -563,6 +564,7 @@ function ImageCapabilityEditor({
                             <>
                                 <ImageSizePresetsEditor profile={profile} disabled={disabled} onChange={updateSize} />
                                 <ParameterField label="允许自定义" description="允许支持值之外的尺寸" supported={profile.size.allowCustom} disabled={disabled} onChange={(allowCustom) => updateSize({ allowCustom })} />
+                                <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => updateSize(patch)} />
                             </>
                         ) : null}
                     </ProtocolParameterCard>
@@ -625,6 +627,7 @@ function ImageCapabilityEditor({
                         <>
                             <ImageSizePresetsEditor profile={profile} disabled={disabled} onChange={updateSize} />
                             <ParameterField label="允许自定义" description="允许用户输入支持值之外的尺寸" supported={profile.size.allowCustom} disabled={disabled} onChange={(allowCustom) => updateSize({ allowCustom })} />
+                            <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => updateSize(patch)} />
                         </>
                     ) : null}
                 </CapabilityBlock>

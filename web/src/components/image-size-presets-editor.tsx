@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/base/switch";
 import "./image-size-picker.css";
 import type { ImageCapabilityConfig } from "@/lib/model-capabilities";
 import { DEFAULT_IMAGE_RATIOS, IMAGE_RATIOS, imageResolutionTiers, imagePresetForRatio, imageResolutionUsesQuality, imageSizeConfigWithPresets, imageSizePresets, imageTierAvailable } from "@/lib/image-size-presets";
-import { validateImageSize } from "@/services/api/image-validation";
+import { imageSizeLimits, validateImageSize } from "@/services/api/image-validation";
 import type { ImageResolutionOption, ImageResolutionTier } from "@/lib/image-resolution-tiers";
 
 export function ImageSizePresetsEditor({
@@ -86,7 +86,7 @@ export function ImageSizePresetsEditor({
         const width = field === "width" ? value : selected.width;
         const height = field === "height" ? value : selected.height;
         try {
-            if (width > 0 && height > 0) validateImageSize(width, height, !profile.parameters);
+            if (width > 0 && height > 0) validateImageSize(width, height, !profile.parameters, imageSizeLimits(profile));
             const next = presets.map((preset) => (preset === selected ? { ...preset, width, height, size: `${width}x${height}` } : preset));
             onChange(imageSizeConfigWithPresets(profile, next));
             setErrors((current) => ({ ...current, [tier]: "" }));

@@ -1,3 +1,4 @@
+import { ImageSizeLimitsFields } from "./image-size-limits-fields";
 import { Input, InputNumber, Switch } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { ImageSizePresetsEditor } from "./image-size-presets-editor";
@@ -474,28 +475,31 @@ export function ImageParameterSizeEditor({
                         请先在上方分辨率中选择支持的档位，再配置各档位的比例和尺寸。
                     </p>
                 ) : grouped || pixelSize ? (
-                    <ImageSizePresetsEditor
-                        profile={editorProfile}
-                        tiers={tiers}
-                        grouped={grouped}
-                        ratios={
-                            definition.values?.length
-                                ? [
-                                      ...new Set([
-                                          ...definition.values.filter((v) => String(v).includes(":")).map(String),
-                                          ...protocolImageSizePresets(protocol)
-                                              .filter((p) => imageParameterAccepts(definition, p.size))
-                                              .map((p) => p.ratio),
-                                      ]),
-                                  ]
-                                : undefined
-                        }
-                        defaultPresets={protocolImageSizePresets(protocol)}
-                        allowCustomRatio={!definition.values?.length}
-                        disabled={disabled}
-                        onClearDefault={!definition.required ? () => updateField({ default: undefined }) : undefined}
-                        onChange={updateSize}
-                    />
+                    <>
+                        <ImageSizePresetsEditor
+                            profile={editorProfile}
+                            tiers={tiers}
+                            grouped={grouped}
+                            ratios={
+                                definition.values?.length
+                                    ? [
+                                          ...new Set([
+                                              ...definition.values.filter((v) => String(v).includes(":")).map(String),
+                                              ...protocolImageSizePresets(protocol)
+                                                  .filter((p) => imageParameterAccepts(definition, p.size))
+                                                  .map((p) => p.ratio),
+                                          ]),
+                                      ]
+                                    : undefined
+                            }
+                            defaultPresets={protocolImageSizePresets(protocol)}
+                            allowCustomRatio={!definition.values?.length}
+                            disabled={disabled}
+                            onClearDefault={!definition.required ? () => updateField({ default: undefined }) : undefined}
+                            onChange={updateSize}
+                        />
+                        <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => onChange(updateImageParameterSize(profile, { ...profile.size, ...patch }))} />
+                    </>
                 ) : (
                     <>
                         <div className="image-size-picker">

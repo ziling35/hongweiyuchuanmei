@@ -71,6 +71,57 @@ type ImageSizeConfig struct {
 	AllowCustom bool              `json:"allowCustom"`
 	Presets     []ImageSizePreset `json:"presets,omitempty"`
 	DefaultTier string            `json:"defaultTier,omitempty"`
+	// 像素约束：0 表示未声明，回落到 defaultImageSize* 常量。
+	Step      int     `json:"step,omitempty"`
+	MinPixels int     `json:"minPixels,omitempty"`
+	MaxPixels int     `json:"maxPixels,omitempty"`
+	MaxEdge   int     `json:"maxEdge,omitempty"`
+	MaxRatio  float64 `json:"maxRatio,omitempty"`
+}
+
+// 未声明像素约束时的默认值，与历史硬编码保持一致。
+const (
+	defaultImageSizeStep      = 16
+	defaultImageSizeMinPixels = 655360
+	defaultImageSizeMaxPixels = 8294400
+	defaultImageSizeMaxEdge   = 3840
+	defaultImageSizeMaxRatio  = 3.0
+)
+
+// imageSizeLimits 是像素尺寸校验实际使用的约束。
+type imageSizeLimits struct {
+	Step      int
+	MinPixels int64
+	MaxPixels int64
+	MaxEdge   int
+	MaxRatio  float64
+}
+
+// sizeLimits 返回能力声明的像素约束，未声明的字段回落到默认值。
+func (value ImageSizeConfig) sizeLimits() imageSizeLimits {
+	limits := imageSizeLimits{
+		Step:      defaultImageSizeStep,
+		MinPixels: defaultImageSizeMinPixels,
+		MaxPixels: defaultImageSizeMaxPixels,
+		MaxEdge:   defaultImageSizeMaxEdge,
+		MaxRatio:  defaultImageSizeMaxRatio,
+	}
+	if value.Step > 0 {
+		limits.Step = value.Step
+	}
+	if value.MinPixels > 0 {
+		limits.MinPixels = int64(value.MinPixels)
+	}
+	if value.MaxPixels > 0 {
+		limits.MaxPixels = int64(value.MaxPixels)
+	}
+	if value.MaxEdge > 0 {
+		limits.MaxEdge = value.MaxEdge
+	}
+	if value.MaxRatio > 0 {
+		limits.MaxRatio = value.MaxRatio
+	}
+	return limits
 }
 
 type ImageSizePreset struct {

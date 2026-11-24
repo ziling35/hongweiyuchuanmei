@@ -212,6 +212,16 @@ func projectImageParameters(image *ImageCapabilityConfig) {
 			}
 			image.Size.Values, image.Size.Default = values, initial
 			image.Size.AllowCustom = len(p.Values) == 0
+			// 插件可用 size 参数的 step/min/max 声明像素约束（min/max 视为像素总量）。
+			if p.Step != nil {
+				image.Size.Step = int(*p.Step)
+			}
+			if p.Min != nil {
+				image.Size.MinPixels = int(*p.Min)
+			}
+			if p.Max != nil {
+				image.Size.MaxPixels = int(*p.Max)
+			}
 		case "imageResolution":
 			image.Resolution = ImageResolutionConfig{Supported: true, Values: values, Default: initial}
 		case "quality":

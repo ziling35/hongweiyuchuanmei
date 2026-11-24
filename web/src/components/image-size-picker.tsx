@@ -5,7 +5,7 @@ import type { ImageCapabilityConfig } from "@/lib/model-capabilities";
 import { imageResolutionTiers, imagePresetForRatio, imagePresetValue, imageQualityForSelection, imageQualityForTier, imageResolutionUsesQuality, imageSizePresets, imageTierAvailable, imageDeclaredSizePresets } from "@/lib/image-size-presets";
 import { buildImageResolutionOptions, type ImageResolutionOption, type ImageResolutionTier } from "@/lib/image-resolution-tiers";
 
-import { resolveImageRequestSize, validateImageSize } from "@/services/api/image-validation";
+import { imageSizeLimits, resolveImageRequestSize, validateImageSize } from "@/services/api/image-validation";
 
 export function ImageSizePicker({
     profile,
@@ -106,7 +106,7 @@ export function ImageSizePicker({
             preset.width = Math.round(preset.width / 16) * 16;
             preset.height = Math.round(preset.height / 16) * 16;
             preset.size = `${preset.width}x${preset.height}`;
-            validateImageSize(preset.width, preset.height);
+            validateImageSize(preset.width, preset.height, true, imageSizeLimits(profile));
         }
         return preset;
     };
@@ -139,7 +139,7 @@ export function ImageSizePicker({
                 return;
             }
             const value = `${width}x${height}`;
-            validateImageSize(width, height, !profile.size.values.includes(value));
+            validateImageSize(width, height, !profile.size.values.includes(value), imageSizeLimits(profile));
             const preset = presets.find((item) => item.size === value) || {
                 ...imagePresetForRatio(width * height <= 2_000_000 ? "1k" : width * height <= 4_300_000 ? "2k" : "4k", `${width}:${height}`),
                 width,

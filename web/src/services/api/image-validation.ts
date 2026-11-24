@@ -19,6 +19,35 @@ const IMAGE_MIN_PIXELS = 655360;
 const IMAGE_MAX_PIXELS = 8294400;
 const IMAGE_MAX_EDGE = 3840;
 const IMAGE_MAX_RATIO = 3;
+
+export type ImageSizeLimits = {
+    step: number;
+    minPixels: number;
+    maxPixels: number;
+    maxEdge: number;
+    maxRatio: number;
+};
+
+/** 未声明像素约束时的默认值，与历史硬编码保持一致。 */
+export const DEFAULT_IMAGE_SIZE_LIMITS: ImageSizeLimits = {
+    step: IMAGE_SIZE_STEP,
+    minPixels: IMAGE_MIN_PIXELS,
+    maxPixels: IMAGE_MAX_PIXELS,
+    maxEdge: IMAGE_MAX_EDGE,
+    maxRatio: IMAGE_MAX_RATIO,
+};
+
+/** 按能力声明解析像素约束；未声明的字段回落到默认值。 */
+export function imageSizeLimits(profile?: Pick<ImageCapabilityConfig, "size">): ImageSizeLimits {
+    const size = profile?.size;
+    return {
+        step: size?.step && size.step > 0 ? size.step : DEFAULT_IMAGE_SIZE_LIMITS.step,
+        minPixels: size?.minPixels && size.minPixels > 0 ? size.minPixels : DEFAULT_IMAGE_SIZE_LIMITS.minPixels,
+        maxPixels: size?.maxPixels && size.maxPixels > 0 ? size.maxPixels : DEFAULT_IMAGE_SIZE_LIMITS.maxPixels,
+        maxEdge: size?.maxEdge && size.maxEdge > 0 ? size.maxEdge : DEFAULT_IMAGE_SIZE_LIMITS.maxEdge,
+        maxRatio: size?.maxRatio && size.maxRatio > 0 ? size.maxRatio : DEFAULT_IMAGE_SIZE_LIMITS.maxRatio,
+    };
+}
 const VOLCENGINE_ARK_IMAGE_MAX_PIXELS = 4624220;
 
 export function normalizeQuality(quality: string) {
@@ -77,21 +106,21 @@ export function parseImageDimensions(value: string) {
     return { width: Number(match[1]), height: Number(match[2]) };
 }
 
-export function validateImageSize(width: number, height: number, requireStepAlignment = true) {
+export function validateImageSize(width: number, height: number, requireStepAlignment = true, limits: ImageSizeLimits = DEFAULT_IMAGE_SIZE_LIMITS) {
     if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) throw new Error("图像尺寸必须是正整数，例如 1024x1024");
-    if (requireStepAlignment && (width % IMAGE_SIZE_STEP !== 0 || height % IMAGE_SIZE_STEP !== 0)) throw new Error("图像尺寸的宽高必须是 16 的倍数，请调整尺寸");
-    if (Math.max(width, height) > IMAGE_MAX_EDGE) throw new Error("图像尺寸最长边不能超过 3840px，请调整尺寸");
-    if (Math.max(width, height) / Math.min(width, height) > IMAGE_MAX_RATIO) throw new Error("图像宽高比不能超过 3:1，请调整尺寸");
+    if (requireStepAlignment && limits.step > 1 && (width % limits.step !== 0 || height % limits.step !== 0)) throw new Error(`图像尺寸的宽高必须是 ${limits.step} 的倍数，请调整尺寸`);
+    if (Math.max(width, height) > limits.maxEdge) throw new Error(`图像尺寸最长边不能超过 ${limits.maxEdge}px，请调整尺寸`);
+    if (Math.max(width, height) / Math.min(width, height) > limits.maxRatio) throw new Error(`图像宽高比不能超过 ${limits.maxRatio}:1，请调整尺寸`);
     const pixels = width * height;
-    if (pixels < IMAGE_MIN_PIXELS || pixels > IMAGE_MAX_PIXELS) throw new Error("图像总像素需在 655360 到 8294400 之间，请调整尺寸");
+    if (pixels < limits.minPixels || pixels > limits.maxPixels) throw new Error(`图像总像素需在 ${limits.minPixels} 到 ${limits.maxPixels} 之间，请调整尺寸`);
 }
 
-export function resolveRequestSize(quality: string | undefined, size: string) {
+export function resolveRequestSize(quality: string | undefined, size: string, limits: ImageSizeLimits = DEFAULT_IMAGE_SIZE_LIMITS) {
     const value = size.trim();
     if (!value || value.toLowerCase() === "auto") return undefined;
     const dimensions = parseImageDimensions(value);
     if (dimensions) {
-        validateImageSize(dimensions.width, dimensions.height);
+        validateImageSize(dimensions.width, dimensions.height, true, limits);
         return `${dimensions.width}x${dimensions.height}`;
     }
     if (value.includes(":")) return resolveSize(quality, value);
@@ -115,6 +144,7 @@ function dimensionGCD(left: number, right: number) {
 export function resolveImageRequestSize(profile: ImageCapabilityConfig, quality: string | undefined, size: string) {
     const request = imageSizeRequest(profile, size);
     if (!request) return undefined;
+    const limits = imageSizeLimits(profile);
     if (request.parameter === "aspect_ratio" && !profile.size.allowCustom && profile.size.presets?.length) {
         const normalized = normalizeQuality(quality || profile.quality.default);
         const tier = normalized === "low" ? "1k" : normalized === "medium" ? "2k" : normalized === "high" ? "4k" : undefined;
@@ -123,19 +153,17 @@ export function resolveImageRequestSize(profile: ImageCapabilityConfig, quality:
         }
     }
     const dimensions = parseImageDimensions(request.value);
-    // 模型声明的精确预设（如 1920x1080）不应被自定义尺寸的 16 像素对齐规则拒绝；
+    // 模型声明的精确预设（如 1920x1080）不应被自定义尺寸的像素对齐规则拒绝；
     // 管理员在「配置画幅与精确像素」里显式配置的预设像素同样豁免。
-    const presetSize =
-        request.parameter === "size" && dimensions
-            ? profile.size.presets?.some((preset) => preset.size === request.value)
-            : false;
+    const presetSize = request.parameter === "size" && dimensions ? profile.size.presets?.some((preset) => preset.size === request.value) : false;
     if (request.parameter === "size" && dimensions && (presetSize || profile.size.values.includes(request.value))) {
-        validateImageSize(dimensions.width, dimensions.height, false);
+        validateImageSize(dimensions.width, dimensions.height, false, limits);
         return request;
     }
-    const value = request.parameter === "size" ? resolveRequestSize(quality, request.value) : resolveAspectRatio(request.value);
+    const value = request.parameter === "size" ? resolveRequestSize(quality, request.value, limits) : resolveAspectRatio(request.value);
     return value ? { parameter: request.parameter, value } : undefined;
 }
+
 export function validateImageCapability(profile: ImageCapabilityConfig, references: ReferenceImage[], mask?: ReferenceImage) {
     if (references.length > profile.references.maxImages) throw new Error(`当前图片模型最多支持 ${profile.references.maxImages} 张参考图`);
     if (mask && !profile.references.maskSupported) throw new Error("当前图片模型不支持蒙版编辑");
