@@ -6,6 +6,7 @@ import { consumeTaskTextStream, createTaskTextStreamParser, type TaskTextStreamE
 import { recordDiagnosticEvent } from "@/services/diagnostics/client-diagnostics";
 import { observeGenerationTaskStatus, observeGenerationTaskStatuses } from "@/services/generation-completion-tracker";
 import { assertCurrentUserSession, captureUserSession, getActiveUserScope } from "@/lib/user-scope";
+import { activeTeamBillingMembershipId } from "@/stores/use-billing-source-store";
 
 export type { BackendEnvelope } from "@/services/api/request";
 
@@ -143,6 +144,8 @@ export type CreateTaskInput = {
     model?: string;
     logicalModelId?: string;
     input?: Record<string, unknown>;
+    /** 扣费账户：留空扣个人钱包，传成员关系 ID 则扣团长划给该成员的团队额度。 */
+    billingMembershipId?: string;
 };
 export async function createGenerationTask(input: CreateTaskInput) {
     if (workspaceTeamId) {
@@ -154,6 +157,10 @@ export async function createGenerationTask(input: CreateTaskInput) {
         if (!window.confirm(`本次生成将从你的团队额度中扣除最多 ${quote.maxChargeMicrocredits / 1_000_000} 积分，继续生成？`)) throw new DOMException("已取消生成", "AbortError");
         const metadata = input.input?.metadata as { clientOperationId?: string; messageId?: string } | undefined;
         input = { ...input, maxChargeMicrocredits: quote.maxChargeMicrocredits, idempotencyKey: input.idempotencyKey || metadata?.clientOperationId || metadata?.messageId || createClientUUID() };
+    } else {
+        // 个人空间可以用团长划给本人的团队额度付款：只换扣费账户，任务和产物仍属个人空间。
+        const membershipId = activeTeamBillingMembershipId();
+        if (membershipId) input = { ...input, billingMembershipId: membershipId };
     }
     return http.post<GenerationTask>("/tasks", input).then((task) => {
         recordDiagnosticEvent({ level: "info", category: "task", message: "任务已创建", taskId: task.id, projectId: task.projectId });

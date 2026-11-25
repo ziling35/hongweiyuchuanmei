@@ -231,6 +231,11 @@ func (s *Service) CreateTask(userID string, req CreateTaskRequest) (*model.Task,
 	if err != nil {
 		return nil, err
 	}
+	if membershipID := strings.TrimSpace(req.BillingMembershipID); billingOrder != nil && membershipID != "" {
+		if err := s.applyTeamBillingAccount(userID, billingOrder, membershipID, normalizedInput); err != nil {
+			return nil, err
+		}
+	}
 	if req.admission != nil && billingOrder != nil {
 		if billingOrder.AmountMicrocredits > req.admission.MaxCharge {
 			return nil, BadAuthRequest("模型调用报价超过本轮 Agent 积分上限，尚未创建任务或扣费")

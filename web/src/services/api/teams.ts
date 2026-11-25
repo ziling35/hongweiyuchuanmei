@@ -1,4 +1,4 @@
-import { http } from "@/services/api/request";
+import { compactApiParams, http } from "@/services/api/request";
 import type { CreditLedgerEntry } from "@/services/api/wallet";
 
 export type TeamSummary = { id: string; name: string; parentId?: string; parentName?: string; ownerUserId: string; role: "owner" | "member"; membershipId: string };
@@ -69,4 +69,15 @@ export function transferTeamCredits(teamId: string, input: { action: "fund" | "w
 }
 export function publishTeamAssets(teamId: string, assetIds: string[], idempotencyKey: string) {
     return http.post<{ results: TeamAssetPublicationResult[] }>(`${teamPath(teamId)}/asset-publications`, { assetIds, idempotencyKey }, { timeout: 120_000 });
+}
+
+export type TeamUsageTotals = { spentMicrocredits: number; reservedMicrocredits: number; orderCount: number };
+export type TeamUsageMember = { membershipId: string; userId: string; username: string; displayName: string; role: "owner" | "member"; status: string; spentMicrocredits: number; reservedMicrocredits: number; orderCount: number };
+export type TeamUsageBreakdown = { key: string; spentMicrocredits: number; orderCount: number };
+export type TeamUsageDay = { day: string; spentMicrocredits: number; orderCount: number };
+export type TeamUsageReport = { from: string; to: string; totals: TeamUsageTotals; members: TeamUsageMember[]; capabilities: TeamUsageBreakdown[]; models: TeamUsageBreakdown[]; days: TeamUsageDay[] };
+
+/** 团队用量报表：所有者看全员，普通成员只会拿到自己的汇总。 */
+export function getTeamUsage(teamId: string, params: { from: string; to: string }, signal?: AbortSignal) {
+    return http.get<TeamUsageReport>(`${teamPath(teamId)}/usage`, { params: compactApiParams(params), signal });
 }

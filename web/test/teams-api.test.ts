@@ -92,6 +92,13 @@ describe("team publication and identity boundaries", () => {
         expect(requests[0]).toEqual({ path: "/teams/team%2Fa/members/membership%2Fc/allocate", body: { amountMicrocredits: 1200000, idempotencyKey: "transfer" } });
     });
 
+    // 常驻通知条与个人通知中心都是跨空间只读接口：团队空间里被改写或拒绝，横幅就整条不渲染。
+    test("global read-only feeds stay reachable inside a team space", () => {
+        expect(workspaceApiPath("/banner-announcements", "team/a")).toBe("/banner-announcements");
+        expect(workspaceApiPath("/announcements", "team/a")).toBe("/announcements");
+        expect(() => workspaceApiPath("/unmapped-endpoint", "team/a")).toThrow("此功能尚未在当前团队空间开放");
+    });
+
     test("removing one workspace cache keeps other teams and users intact", () => {
         const client = new QueryClient();
         const a = [...teamKeys.space("alice", "a"), "assets"];

@@ -89,6 +89,7 @@ const TeamsPage = preloadableLazy(() => import("@/pages/teams"));
 const TeamWorkspacePage = preloadableLazy<object>(() => import("@/pages/teams").then((module) => ({ default: module.TeamWorkspacePage })));
 const TeamMembersPage = preloadableLazy<object>(() => import("@/pages/teams/members").then((module) => ({ default: module.TeamMembersPane })));
 const TeamWalletPage = preloadableLazy<object>(() => import("@/pages/teams/wallet").then((module) => ({ default: module.TeamWalletPane })));
+const TeamUsagePage = preloadableLazy<object>(() => import("@/pages/teams/usage").then((module) => ({ default: module.TeamUsagePane })));
 
 function deferred(element: ReactNode, fallback: ReactNode = <WorkspaceRouteLoader />) {
     return <Suspense fallback={fallback}>{element}</Suspense>;
@@ -210,6 +211,7 @@ const routes: RouteObject[] = [
                     { path: "create", element: <RequireFeature feature="creditsEnabled">{deferred(<CreatePage />)}</RequireFeature> },
                     { path: "members", element: deferred(<TeamMembersPage />) },
                     { path: "wallet", element: <RequireFeature feature="creditsEnabled">{deferred(<TeamWalletPage />)}</RequireFeature> },
+                    { path: "usage", element: <RequireFeature feature="creditsEnabled">{deferred(<TeamUsagePage />)}</RequireFeature> },
                     { path: "*", element: deferred(<NotFound />) },
                 ],
             },

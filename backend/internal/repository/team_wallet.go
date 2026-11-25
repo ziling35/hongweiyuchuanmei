@@ -280,7 +280,9 @@ func billingAccountQuery(tx *gorm.DB, order model.BillingOrder) *gorm.DB {
 }
 
 func validateTeamBillingReservation(tx *gorm.DB, order *model.BillingOrder) error {
-	if order.Capability != "text" || (order.BillingMode != "fixed_request" && order.BillingMode != "token") || order.Scene != "team_text" || !order.ChargeLimitSet || order.ChargeLimitMicrocredits != order.AmountMicrocredits || order.BillingAccountID != model.TeamMemberCreditAccountID(order.MembershipID) {
+	// 成员账户、封顶金额与成员关系是这条路径的唯一不变量。具体能力与场景由任务决定：
+	// 团队空间内的文本生成和个人空间里用团队额度生成的图片 / 视频 / 音频共用这一处校验。
+	if order.MembershipID == "" || !order.ChargeLimitSet || order.ChargeLimitMicrocredits != order.AmountMicrocredits || order.BillingAccountID != model.TeamMemberCreditAccountID(order.MembershipID) {
 		return ErrTeamWalletForbidden
 	}
 	repo := New(tx)

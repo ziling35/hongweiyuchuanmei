@@ -1,5 +1,5 @@
 import { Popover } from "antd";
-import { ChevronRight, ChevronsUpDown, CircleUserRound, History as HistoryIcon, Image as ImageIcon, PanelLeftClose, PanelLeftOpen, ShoppingBag, Users, Video, Wallet, FileText } from "lucide-react";
+import { BarChart3, ChevronRight, ChevronsUpDown, CircleUserRound, History as HistoryIcon, Image as ImageIcon, PanelLeftClose, PanelLeftOpen, ShoppingBag, Users, Video, Wallet, FileText } from "lucide-react";
 import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
 import { Link, useLocation, useSearchParams } from "react-router";
@@ -377,6 +377,7 @@ export function WorkspaceSidebarNav({ collapsed, onNavigate, onOpenSearch, onExp
                               .map((item) => ({ ...item, to: `${base}${item.id === "home" ? "/create" : item.to}` })),
                           { id: "team-members", title: "成员与邀请", icon: Users, to: `${base}/members` },
                           ...(features.creditsEnabled ? [{ id: "team-wallet", title: "团队积分", icon: Wallet, to: `${base}/wallet` }] : []),
+                          ...(features.creditsEnabled ? [{ id: "team-usage", title: "用量报表", icon: BarChart3, to: `${base}/usage` }] : []),
                       ],
                   },
               ],
@@ -384,7 +385,7 @@ export function WorkspaceSidebarNav({ collapsed, onNavigate, onOpenSearch, onExp
           }
         : personalNav;
     const section = pathname.slice(base.length).split("/")[1];
-    const activeId = teamId && (section === "members" || section === "wallet") ? `team-${section}` : pathname === "/teams" ? "teams" : workspaceNavActiveId(pathname.slice(base.length) || "/canvas", searchParams.get("section"));
+    const activeId = teamId && (section === "members" || section === "wallet" || section === "usage") ? `team-${section}` : pathname === "/teams" ? "teams" : workspaceNavActiveId(pathname.slice(base.length) || "/canvas", searchParams.get("section"));
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const sectionsRef = useRef<HTMLDivElement>(null);

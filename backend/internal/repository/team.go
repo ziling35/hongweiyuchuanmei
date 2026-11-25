@@ -77,6 +77,15 @@ func (r *Repository) TeamMembershipForUser(teamID, userID string) (*model.TeamMe
 	return &member, err
 }
 
+// TeamMemberForUserByID 按成员关系 ID 取当前账号的有效成员资格，用于把任务的扣费账户定位到成员团队额度。
+func (r *Repository) TeamMemberForUserByID(userID, membershipID string) (*model.TeamMembership, error) {
+	var member model.TeamMembership
+	if err := r.db.Where("id = ? AND user_id = ? AND status = ?", membershipID, userID, model.TeamActive).First(&member).Error; err != nil {
+		return nil, err
+	}
+	return &member, nil
+}
+
 func (r *Repository) TeamsForUser(userID string) ([]TeamSummary, error) {
 	rows := []TeamSummary{}
 	err := r.activeTeamMemberships(userID).Select("teams.*, company.name AS parent_name, team_memberships.id AS membership_id, team_memberships.role").Order("teams.created_at, teams.id").Scan(&rows).Error

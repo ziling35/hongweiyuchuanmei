@@ -145,6 +145,8 @@ type CreateTaskRequest struct {
 	LogicalModelID        string         `json:"logicalModelId"`
 	MaxChargeMicrocredits *int64         `json:"maxChargeMicrocredits,omitempty"`
 	IdempotencyKey        string         `json:"idempotencyKey,omitempty"`
+	// 个人空间的任务可以指定用团长划给自己的团队额度付款；留空表示扣个人钱包。
+	BillingMembershipID string `json:"billingMembershipId,omitempty"`
 	Input                 map[string]any `json:"input"`
 	TraceID               string         `json:"-"`
 	RequestID             string         `json:"-"`

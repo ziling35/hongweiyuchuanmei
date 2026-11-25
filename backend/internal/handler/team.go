@@ -40,6 +40,7 @@ func RegisterTeamWorkspaceRoutes(api *gin.RouterGroup, svc *service.Service) {
 	registerTeamRoutes(guarded, svc)
 	registerTeamAssetRoutes(guarded, svc)
 	registerTeamWalletRoutes(guarded, svc)
+	registerTeamUsageRoutes(guarded, svc)
 	workspace := guarded.Group("/teams/:teamId/workspace")
 	registerWorkspaceContentRoutes(workspace, svc)
 	registerWorkspaceAssetBatchRoutes(workspace, svc)

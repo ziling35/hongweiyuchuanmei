@@ -20,6 +20,7 @@ import { workspacePageTitleKey } from "@/lib/workspace-page-title";
 import { teamCredits, teamIdFromPath } from "@/lib/team-query-keys";
 import { openTeamInvitations } from "./team-invitation-center";
 import { openSpaceDirectory } from "./team-space-directory";
+import { BillingSourcePicker } from "./billing-source-picker";
 
 export function WorkspaceTopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen: boolean; onToggleSidebar: () => void }) {
     const brandName = useAppearanceStore((state) => state.appearance.brandName);
@@ -64,12 +65,15 @@ export function WorkspaceTopBar({ sidebarOpen, onToggleSidebar }: { sidebarOpen:
                 {creditsEnabled && (
                     <div className="app-workspace-topbar-wallet">
                         {teamsEnabled && user ? (
-                            <button type="button" className="app-workspace-topbar-credit-pill space-credit-pill" aria-haspopup="dialog" aria-label={spaceLabel} title={spaceLabel} onClick={openSpaceDirectory}>
-                                <BalanceMark aria-hidden />
-                                <span>{spaceTitle}</span>
-                                <strong>{spaceBalance}</strong>
-                                {teamTotal && <small>{teamTotal}</small>}
-                            </button>
+                            teamId ? (
+                                <button type="button" className="app-workspace-topbar-credit-pill space-credit-pill" aria-haspopup="dialog" aria-label={spaceLabel} title={spaceLabel} onClick={openSpaceDirectory}>
+                                    <BalanceMark aria-hidden />
+                                    <span>{spaceTitle}</span>
+                                    <strong>{spaceBalance}</strong>
+                                </button>
+                            ) : (
+                                <BillingSourcePicker />
+                            )
                         ) : (
                             <button type="button" className="app-workspace-topbar-credit-pill" aria-label={t("shell.openWallet", { balance })} onClick={() => openWorkspaceWallet()}>
                                 <BalanceMark aria-hidden />
