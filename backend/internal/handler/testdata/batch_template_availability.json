@@ -29,6 +29,8 @@
                   "cacheWriteTokenPriceMicrocredits": 0,
                   "referenceVideoUnitPriceMicrocredits": 0,
                   "referenceVideoOutputTokenPriceMicrocredits": 0,
+                  "referenceImageUnitPriceMicrocredits": 0,
+                  "freeReferenceImages": 0,
                   "costPricing": {
                     "configured": true,
                     "unitPriceMicrocredits": 250000,
@@ -37,7 +39,9 @@
                     "cachedTokenPriceMicrocredits": 0,
                     "cacheWriteTokenPriceMicrocredits": 0,
                     "referenceVideoUnitPriceMicrocredits": 0,
-                    "referenceVideoOutputTokenPriceMicrocredits": 0
+                    "referenceVideoOutputTokenPriceMicrocredits": 0,
+                    "referenceImageUnitPriceMicrocredits": 0,
+                    "freeReferenceImages": 0
                   },
                   "priceConfigured": true,
                   "enabled": false
@@ -92,6 +96,8 @@
                   "cacheWriteTokenPriceMicrocredits": 0,
                   "referenceVideoUnitPriceMicrocredits": 0,
                   "referenceVideoOutputTokenPriceMicrocredits": 0,
+                  "referenceImageUnitPriceMicrocredits": 0,
+                  "freeReferenceImages": 0,
                   "costPricing": {
                     "configured": true,
                     "unitPriceMicrocredits": 250000,
@@ -100,7 +106,9 @@
                     "cachedTokenPriceMicrocredits": 0,
                     "cacheWriteTokenPriceMicrocredits": 0,
                     "referenceVideoUnitPriceMicrocredits": 0,
-                    "referenceVideoOutputTokenPriceMicrocredits": 0
+                    "referenceVideoOutputTokenPriceMicrocredits": 0,
+                    "referenceImageUnitPriceMicrocredits": 0,
+                    "freeReferenceImages": 0
                   },
                   "priceConfigured": true,
                   "enabled": false
