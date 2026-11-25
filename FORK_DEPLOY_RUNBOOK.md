@@ -69,7 +69,7 @@ curl -s http://127.0.0.1:3000/api/health | python3 -c \
   'import sys,json;d=json.load(sys.stdin)["data"];print(d["build"]);print(d["schema"])'
 ```
 
-期望：`commit` 等于目标 sha、`schema.current == schema.expected`（本次为 111）、`ready: true`。
+期望：`commit` 等于目标 sha、`schema.current == schema.expected`（当前为 113；每次新增迁移同步改这一行）、`ready: true`。
 
 ### 回滚
 
@@ -113,11 +113,11 @@ docker load -i canvas-$TAG.tar.gz    # 能直接读 gzip
 docker images --digests --format '{{.Repository}}  {{.Digest}}' | grep open-ai-canvas
 ```
 
-digest 必须与源机一致（内容寻址）。之后照第 2 节跑脚本——此时 `docker pull` 只取几 KB 的 manifest，层已在本地，不会再卡。
+digest 必须与源机一致（内容寻址）。按第 2 节跑脚本前先确认本地镜像**有名字**：如果 `docker load` 打印的是 `Loaded image ID:`（无名镜像），脚本的 `docker pull` 仍会去 ghcr 解析 manifest，慢网会卡住——这种情况按 3.4 收尾。
 
 ### 3.2 若脚本的 pull 仍拿不到 manifest
 
-手动跳过 pull（Compose 默认不会重新拉本地已有的镜像）：
+手动跳过 pull（Compose 默认不会重新拉本地已有的镜像）。注意：`.env` 写 `name@sha256:...` 的前提是本地镜像带 RepoDigest（pull 过的才有）；从 tar 载入的无名镜像要改用 tag 形式，见 3.4。
 
 ```bash
 cd /www/wwwroot/<站点>
@@ -153,6 +153,66 @@ docker run -d --name ghcr-cache --restart=always -p 5000:5000 \
 
 - 同地域同 VPC 的两台机器之间优先用**内网 IP**（`ip -4 addr | grep 'inet 10\.'` 之类），不计公网流量且快很多。
 
+### 3.4 从 tar 载入后的收尾（tag / .env / 不拉镜像）
+
+搬运时最容易卡住的一步：`docker save repo@sha256:...` 打出来的归档**不带 tag**，`docker load` 只能还原成无名镜像。
+
+典型现场：
+
+```text
+Loaded image ID: sha256:0c5953e8...            # 悬空镜像，只有 ID
+Loaded image ID: sha256:39b671df...
+Loaded image ID: sha256:a016c7c0...
+Error response from daemon: No such image: ghcr.io/ziling35/open-ai-canvas-backend@sha256:0c5953e8...
+```
+
+`docker tag repo@sha256:... repo:$TAG` 失败的原因：本地镜像没有对应 RepoDigest（只有 pull 过的镜像才有）。
+
+收尾三步：
+
+```bash
+cd /www/wwwroot/<站点>
+TAG=sha-<完整sha>
+
+# 1) 用 docker load 打印出来的 ID 打 tag（ID 就是 tar 里的镜像内容 ID）
+docker tag sha256:<backend-id>  ghcr.io/ziling35/open-ai-canvas-backend:$TAG
+docker tag sha256:<web-id>      ghcr.io/ziling35/open-ai-canvas-web:$TAG
+docker tag sha256:<agent-id>    ghcr.io/ziling35/open-ai-canvas-yingce-agent:$TAG
+docker images --format '{{.Repository}}:{{.Tag}}  {{.ID}}' | grep "$TAG"
+
+# 2) .env 用 tag，不要用 digest
+#    重新 tag 出来的镜像没有 RepoDigests，写 name@sha256:... 会让 Compose 回落去 pull
+CANVAS_IMAGE_TAG=sha-<完整sha>
+CANVAS_BACKEND_IMAGE=ghcr.io/ziling35/open-ai-canvas-backend:sha-<完整sha>
+CANVAS_WEB_IMAGE=ghcr.io/ziling35/open-ai-canvas-web:sha-<完整sha>
+CANVAS_YINGCE_AGENT_IMAGE=ghcr.io/ziling35/open-ai-canvas-yingce-agent:sha-<完整sha>
+
+# 3) 先备份库、再迁移、最后强制不拉镜像启动
+docker compose --env-file .env -f docker-compose.deploy.yml exec -T postgres \
+  sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"' > backups/db-$(date +%Y%m%d-%H%M%S).dump
+docker compose --env-file .env -f docker-compose.deploy.yml run --rm migrate
+docker compose --env-file .env -f docker-compose.deploy.yml up -d --remove-orphans --pull never
+```
+
+下次搬运直接绕开这个坑：**源机先打 tag 再 save**，归档里就带名字，目标机 `docker load` 会输出 `Loaded image: repo:tag`。
+
+```bash
+# 源机
+TAG=sha-<完整sha>
+docker tag <镜像ID> ghcr.io/ziling35/open-ai-canvas-backend:$TAG   # 三个镜像都打
+docker save \
+  ghcr.io/ziling35/open-ai-canvas-backend:$TAG \
+  ghcr.io/ziling35/open-ai-canvas-web:$TAG \
+  ghcr.io/ziling35/open-ai-canvas-yingce-agent:$TAG \
+  | gzip -1 > canvas-$TAG.tar.gz
+```
+
+补充：
+
+- 传完先 `gzip -t` 验完整性，再 `docker load`；载入后 `docker images --digests` 的 digest 必须与源机一致（内容寻址）
+- 载入产生的 `<none>` 悬空镜像确认没用后，`docker image prune` 清掉，别和下一版混淆
+- 搬运路径下不要跑 `update-server-image.sh`：它第一步 `docker pull` 三个镜像，慢网会卡住；脚本的 digest 解析也依赖 pull 过的 RepoDigests
+- 431MB 左右的 tar 不要留在站点目录，`docker load` 完就删
 ---
 
 ## 4. 新服务器首次部署
@@ -353,14 +413,16 @@ docker compose --env-file .env -f docker-compose.deploy.yml logs --tail=200 back
 
 ```bash
 cd /www/wwwroot/<站点>
-docker volume ls | grep backend-data          # 得到 <项目名>_backend-data
+VOL=<项目名>_backend-data                      # docker volume ls | grep backend-data 确认
+OWNER=$(docker run --rm -v "$VOL":/data alpine stat -c '%u:%g' /data)
+echo "数据卷属主: $OWNER"
 
-# 备份并取出登记表
-docker run --rm -v <项目名>_backend-data:/data -v "$PWD/backups:/out" alpine \
+# 1) 备份并取出登记表（读取用 root 没有副作用，写回才需要属主身份）
+docker run --rm -v "$VOL":/data:ro -v "$PWD/backups:/out" alpine \
   sh -c 'cp /data/plugin_registry.json /out/plugin_registry.json.$(date +%Y%m%d-%H%M%S).bak &&
          cp /data/plugin_registry.json /out/plugin_registry.edit.json'
 
-# 删掉冲突插件的那条记录（把 kunrou-images 换成日志里的 id）
+# 2) 删掉冲突插件的那条记录（把 kunrou-images 换成日志里的 id）
 python3 - <<'PY'
 import json
 p = '/www/wwwroot/<站点>/backups/plugin_registry.edit.json'
@@ -368,13 +430,35 @@ records = json.load(open(p))
 json.dump([r for r in records if r.get('id') != 'kunrou-images'], open(p, 'w'), ensure_ascii=False, indent=2)
 PY
 
-docker run --rm -v <项目名>_backend-data:/data -v "$PWD/backups:/in" alpine \
+# 3) 写回：必须用数据卷属主身份，root 写进去会让后端读不了登记表
+docker run --rm --user "$OWNER" -v "$VOL":/data -v "$PWD/backups:/in:ro" alpine \
   sh -c 'cp /in/plugin_registry.edit.json /data/plugin_registry.json'
+docker run --rm -v "$VOL":/data alpine \
+  sh -c 'stat -c "登记表属主 %u:%g 权限 %a" /data/plugin_registry.json'
+
 docker compose --env-file .env -f docker-compose.deploy.yml up -d backend web
 curl -s http://127.0.0.1:3000/api/health
 ```
 
+上面最后那条 `stat` 的属主必须等于 `$OWNER`，否则后端启动时会报 `open /data/plugin_registry.json: permission denied`。
+
 记录的启用/禁用状态会重置为包默认值，需要时到管理后台 → 插件再调一次。
+
+### 9.1.1 数据卷文件属主踩坑
+
+`/data` 属于后端镜像里的 `app` 用户（`/data` 的属主，一般是 `100:101`）。任何用 root 容器往数据卷写文件的操作，都会留下 `root:root 600` 的文件，后端（`USER app`）一启动就读不了。修复：
+
+```bash
+VOL=<项目名>_backend-data
+docker run --rm -v "$VOL":/data alpine sh -c '
+  owner=$(stat -c "%u:%g" /data)
+  find /data -user 0 -exec chown "$owner" {} +
+  chmod 600 /data/plugin_registry.json
+  stat -c "%u:%g %a %n" /data/plugin_registry.json'
+docker compose --env-file .env -f docker-compose.deploy.yml up -d
+```
+
+加这层兜底之后，即使属主又错了，后端也不会整体拒绝启动：它会把登记表改名成 `plugin_registry.json.unreadable-<时间戳>` 留档，再用镜像内置插件重建一份并继续启动，同时打 ERROR 日志「插件登记表不可读写，已隔离旧文件并用内置插件重建」。上传过的插件需要重新导入一次。
 
 ### 9.2 处置 B：回滚
 
