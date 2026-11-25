@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -153,12 +154,41 @@ func newPluginRuntime(dataDir string) (*pluginRuntime, error) {
 	}
 	center := &pluginRuntime{registryPath: filepath.Join(dataDir, "plugin_registry.json"), packageDir: packageDir, plugins: make(map[string]pluginRecord)}
 	if err := center.bootstrapBuiltInPlugins(); err != nil {
-		return nil, err
+		if !errors.Is(err, fs.ErrPermission) {
+			return nil, err
+		}
+		// 数据卷里的登记表属主/权限被改坏属于运维事故，用隔离旧文件 + 内置插件重建来兜底，
+		// 否则一个文件的权限位就会让整个后端起不来。旧文件改名保留，便于事后恢复上传的插件。
+		quarantined, quarantineErr := center.quarantineRegistry()
+		if quarantineErr != nil {
+			return nil, fmt.Errorf("%w（插件登记表不可读写且隔离失败：%v；请把数据卷属主改回运行用户后重启）", err, quarantineErr)
+		}
+		slog.Error("插件登记表不可读写，已隔离旧文件并用内置插件重建",
+			"error", err, "registry", center.registryPath, "quarantined", quarantined)
+		if retryErr := center.bootstrapBuiltInPlugins(); retryErr != nil {
+			return nil, fmt.Errorf("%w（隔离旧登记表后重建仍失败：%v）", err, retryErr)
+		}
 	}
 	if err := center.reload(); err != nil {
 		return nil, err
 	}
 	return center, nil
+}
+
+// quarantineRegistry 把不可读写的登记表改名留档，让内置插件重新自举。
+// 文件属主是 root 时 rename 依然可行，因为只需要数据目录的写权限。
+func (c *pluginRuntime) quarantineRegistry() (string, error) {
+	if _, err := os.Lstat(c.registryPath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	target := fmt.Sprintf("%s.unreadable-%s", c.registryPath, time.Now().UTC().Format("20060102-150405"))
+	if err := os.Rename(c.registryPath, target); err != nil {
+		return "", err
+	}
+	return target, nil
 }
 
 func (c *pluginRuntime) bootstrapBuiltInPlugins() error {
