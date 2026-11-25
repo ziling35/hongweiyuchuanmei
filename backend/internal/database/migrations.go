@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const CurrentSchemaVersion int64 = 113
+const CurrentSchemaVersion int64 = 114
 
 const baselineSchemaChecksum = "sha256:open-ai-canvas-schema-v1-20260830"
 const schemaMigrationAppliedAtIndexChecksum = "sha256:schema-migrations-applied-at-index-v2-20260830"
@@ -419,6 +419,13 @@ var schemaMigrations = []migration{
 		return nil
 	}},
 	{version: 113, name: "reference_image_billing", checksum: "sha256:reference-image-billing-v113-20261201", apply: migrateReferenceImageBilling},
+	// v113 给价格档和账单加参考图计费字段时，漏了账单成本快照里带 cost_ 前缀的两列
+	// （cost_reference_image_unit_price_microcredits / cost_free_reference_images），
+	// 让 billing_orders 的 INSERT 直接报 42703、所有生成在预留积分阶段失败。
+	// 这里用 AutoMigrate 补齐：gorm 按模型定义补缺失列，以后再往价格档或账单快照加字段不会重演。
+	{version: 114, name: "reference_image_billing_order_cost", checksum: "sha256:reference-image-billing-order-cost-v114-20261202", apply: func(tx *gorm.DB) error {
+		return tx.AutoMigrate(&model.BillingOrder{}, &model.ChannelModelPriceTier{})
+	}},
 }
 
 func migrateAPILogGenerationContent(tx *gorm.DB) error {

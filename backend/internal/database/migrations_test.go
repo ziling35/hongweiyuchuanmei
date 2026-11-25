@@ -929,3 +929,43 @@ func TestToolsUpgradeFromMain29PreservesMigrationChecksums(t *testing.T) {
 		t.Fatal("tools tables missing")
 	}
 }
+
+// v113 只给价格档补了 cost_ 两列，账单成本快照漏列，导致升级库上 billing_orders 的 INSERT 全部失败。
+// 这条用例锁住升级路径：删掉两列后重跑 v114 必须补回来。
+func TestReferenceImageBillingOrderCostMigrationRestoresMissingCostColumns(t *testing.T) {
+	db, err := Open(Config{Driver: "sqlite", DSN: "file:reference-image-order-cost?mode=memory&cache=shared"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := db.AutoMigrate(&model.BillingOrder{}); err != nil {
+		t.Fatal(err)
+	}
+	columns := []string{"cost_reference_image_unit_price_microcredits", "cost_free_reference_images"}
+	for _, column := range columns {
+		if err := db.Migrator().DropColumn(&model.BillingOrder{}, column); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var target *migration
+	for index := range schemaMigrations {
+		if schemaMigrations[index].version == 114 {
+			target = &schemaMigrations[index]
+		}
+	}
+	if target == nil || target.name != "reference_image_billing_order_cost" {
+		t.Fatalf("missing v114 migration: %+v", target)
+	}
+	if err := target.apply(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, column := range columns {
+		if !db.Migrator().HasColumn(&model.BillingOrder{}, column) {
+			t.Fatalf("v114 did not restore billing_orders.%s", column)
+		}
+	}
+}

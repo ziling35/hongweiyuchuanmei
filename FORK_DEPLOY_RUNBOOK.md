@@ -69,7 +69,7 @@ curl -s http://127.0.0.1:3000/api/health | python3 -c \
   'import sys,json;d=json.load(sys.stdin)["data"];print(d["build"]);print(d["schema"])'
 ```
 
-期望：`commit` 等于目标 sha、`schema.current == schema.expected`（当前为 113；每次新增迁移同步改这一行）、`ready: true`。
+期望：`commit` 等于目标 sha、`schema.current == schema.expected`（当前为 114；每次新增迁移同步改这一行）、`ready: true`。
 
 ### 回滚
 
