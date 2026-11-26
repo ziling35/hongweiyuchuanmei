@@ -3,25 +3,61 @@ import { isSameVideoAspect, videoAspectConflict, videoFrameSizeFromMetadata, VID
 
 describe("视频合并画幅判定", () => {
     test("同比例不同像素档位可以合并", () => {
-        expect(videoAspectConflict([{ width: 992, height: 432 }, { width: 1984, height: 864 }])).toBeNull();
-        expect(videoAspectConflict([{ width: 1280, height: 720 }, { width: 1920, height: 1080 }, { width: 3840, height: 2160 }])).toBeNull();
-        expect(isSameVideoAspect([{ width: 720, height: 1280 }, { width: 1080, height: 1920 }])).toBe(true);
+        expect(
+            videoAspectConflict([
+                { width: 992, height: 432 },
+                { width: 1984, height: 864 },
+            ]),
+        ).toBeNull();
+        expect(
+            videoAspectConflict([
+                { width: 1280, height: 720 },
+                { width: 1920, height: 1080 },
+                { width: 3840, height: 2160 },
+            ]),
+        ).toBeNull();
+        expect(
+            isSameVideoAspect([
+                { width: 720, height: 1280 },
+                { width: 1080, height: 1920 },
+            ]),
+        ).toBe(true);
     });
 
     test("不同比例返回第一处冲突并带两侧尺寸", () => {
-        expect(videoAspectConflict([{ width: 992, height: 432 }, { width: 1280, height: 720 }])).toEqual({
+        expect(
+            videoAspectConflict([
+                { width: 992, height: 432 },
+                { width: 1280, height: 720 },
+            ]),
+        ).toEqual({
             expected: { width: 992, height: 432 },
             actual: { width: 1280, height: 720 },
         });
         // 横竖混选同样拒绝。
-        expect(isSameVideoAspect([{ width: 1920, height: 1080 }, { width: 1080, height: 1920 }])).toBe(false);
+        expect(
+            isSameVideoAspect([
+                { width: 1920, height: 1080 },
+                { width: 1080, height: 1920 },
+            ]),
+        ).toBe(false);
     });
 
     test("容差内的轻微差异仍可合并", () => {
         // 1280×716 相对 16:9 偏差约 0.55%，落在 1% 容差内。
-        expect(videoAspectConflict([{ width: 1280, height: 720 }, { width: 1280, height: 716 }])).toBeNull();
+        expect(
+            videoAspectConflict([
+                { width: 1280, height: 720 },
+                { width: 1280, height: 716 },
+            ]),
+        ).toBeNull();
         // 1280×700 偏差约 2.8%，超过容差。
-        expect(videoAspectConflict([{ width: 1280, height: 720 }, { width: 1280, height: 700 }])).not.toBeNull();
+        expect(
+            videoAspectConflict([
+                { width: 1280, height: 720 },
+                { width: 1280, height: 700 },
+            ]),
+        ).not.toBeNull();
         expect(VIDEO_MERGE_RATIO_TOLERANCE).toBe(0.01);
     });
 
@@ -33,7 +69,12 @@ describe("视频合并画幅判定", () => {
         expect(videoAspectConflict([{}, { width: 992, height: 432 }, {}, { width: 992, height: 434 }])).toBeNull();
         expect(videoAspectConflict([{}, { width: 992, height: 432 }, {}, { width: 1280, height: 720 }])).not.toBeNull();
         // NaN 视为未知。
-        expect(videoAspectConflict([{ width: Number.NaN, height: 720 }, { width: 1280, height: 720 }])).toBeNull();
+        expect(
+            videoAspectConflict([
+                { width: Number.NaN, height: 720 },
+                { width: 1280, height: 720 },
+            ]),
+        ).toBeNull();
     });
 
     test("节点尺寸优先取媒体原生尺寸，缺失时回退首帧尺寸", () => {
