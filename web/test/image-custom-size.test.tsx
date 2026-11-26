@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
 import { defaultImageCapabilityConfig, type ImageCapabilityConfig } from "../src/lib/model-capabilities";
@@ -78,7 +78,10 @@ describe("自定义图片尺寸", () => {
 });
 
 // 尺寸被归一掉时必须给用户反馈，否则点「应用」看起来像没生效。
+// 这些全局只服务本文件的渲染用例，测试结束必须还原：否则同进程里后续测试文件会拿到
+// happy-dom 的 Event/document，出现 "dispatchEvent must be an instance of Event" 之类的跨运行时错误。
 const dom = new Window({ url: "http://localhost/" });
+const restoreGlobals: Array<() => void> = [];
 for (const [key, value] of Object.entries({
     window: dom,
     document: dom.document,
@@ -97,8 +100,17 @@ for (const [key, value] of Object.entries({
     getComputedStyle: dom.getComputedStyle.bind(dom),
     IS_REACT_ACT_ENVIRONMENT: true,
 })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+    restoreGlobals.push(() => {
+        if (previous) Object.defineProperty(globalThis, key, previous);
+        else delete (globalThis as Record<string, unknown>)[key];
+    });
 }
+afterAll(() => {
+    for (const restore of restoreGlobals.reverse()) restore();
+    restoreGlobals.length = 0;
+});
 const { act } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const { ImageSizePicker } = await import("../src/components/image-size-picker");
