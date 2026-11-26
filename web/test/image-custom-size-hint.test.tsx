@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
 import { defaultImageCapabilityConfig, type ImageCapabilityConfig } from "../src/lib/model-capabilities";
@@ -41,6 +41,11 @@ afterAll(() => {
 const { act } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const { ImageSizePicker } = await import("../src/components/image-size-picker");
+// act() 是否真正 flush 取决于这个全局；其他测试文件可能改写或删除它。
+// 每个用例前重新置位，否则状态更新不会在 act 内提交，点击时读到的是旧值。
+beforeEach(() => {
+    Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, writable: true, value: true });
+});
 
 // 声明式模型只接受固定像素时，自定义输入必须被归一，并在面板上如实说明。
 function declarativeProfile(): ImageCapabilityConfig {
@@ -117,6 +122,11 @@ function eventConstructors(view: Window & typeof globalThis) {
     return unique;
 }
 
+// act 在部分运行时会退化成 no-op；补一次宏任务，确保待提交的状态更新落地后再断言或点击。
+async function flushReact() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function typeCustomSize(target: HTMLInputElement, value: string) {
     const view = target.ownerDocument.defaultView ?? dom;
     const setter = nativeValueSetter(target);
@@ -125,6 +135,7 @@ async function typeCustomSize(target: HTMLInputElement, value: string) {
         else target.value = value;
         for (const Ctor of eventConstructors(view)) target.dispatchEvent(new Ctor("input", { bubbles: true }));
     });
+    await flushReact();
 }
 
 async function clickApply(target: HTMLButtonElement) {
@@ -134,6 +145,7 @@ async function clickApply(target: HTMLButtonElement) {
         target.click();
         for (const Ctor of eventConstructors(view)) target.dispatchEvent(new Ctor("click", { bubbles: true }));
     });
+    await flushReact();
 }
 
 // 用例名带序号：CI 汇总里只打印用例名，序号能直接指出卡在第几步，不必翻完整日志。
