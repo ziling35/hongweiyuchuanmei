@@ -97,12 +97,25 @@ function findApplyButton(container: HTMLElement) {
 
 // 事件必须来自元素自身的 window：模块缓存可能让全局 Event 属于另一个 DOM 运行时，
 // 那样 dispatchEvent 会以 "must be an instance of Event" 失败。
+// 受控输入必须走元素自身原型上的 value setter，React 才会认为值变了并派发 onChange。
+// 不同运行时里 defaultView 指向的构造函数可能不是元素真实原型，所以优先用元素自己的原型。
+function nativeValueSetter(target: HTMLInputElement) {
+    const candidates = [Object.getPrototypeOf(target) as object | null, target.ownerDocument.defaultView?.HTMLInputElement.prototype ?? null];
+    for (const prototype of candidates) {
+        const setter = prototype ? Object.getOwnPropertyDescriptor(prototype, "value")?.set : undefined;
+        if (setter) return setter;
+    }
+    return null;
+}
+
 async function typeCustomSize(target: HTMLInputElement, value: string) {
     const view = target.ownerDocument.defaultView ?? dom;
-    const setValue = Object.getOwnPropertyDescriptor(view.HTMLInputElement.prototype, "value")?.set;
+    const setter = nativeValueSetter(target);
     await act(async () => {
-        setValue?.call(target, value);
+        if (setter) setter.call(target, value);
+        else target.value = value;
         target.dispatchEvent(new view.Event("input", { bubbles: true }));
+        target.dispatchEvent(new view.Event("change", { bubbles: true }));
     });
 }
 
@@ -135,6 +148,18 @@ describe("自定义尺寸被归一后的提示", () => {
             const apply = findApplyButton(container);
             expect(apply, "应用按钮未渲染").toBeTruthy();
             if (!apply) throw new Error("应用按钮未渲染");
+        } finally {
+            await cleanup();
+        }
+    });
+
+    test("②b 输入框接受自定义像素文本", async () => {
+        const { container, cleanup } = await renderPicker();
+        try {
+            const input = findCustomSizeInput(container);
+            if (!input) throw new Error("自定义尺寸输入框未渲染");
+            await typeCustomSize(input, "1152x1152");
+            expect(input.value, "受控输入没有接受键入值").toBe("1152x1152");
         } finally {
             await cleanup();
         }
