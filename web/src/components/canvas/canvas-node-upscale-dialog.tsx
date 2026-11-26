@@ -50,29 +50,20 @@ function ResizeEditor({ dataUrl, onClose, onConfirm }: UpscaleDialogProps) {
         if (!size) return;
         const width = clampEdge(value);
         if (width === null) return;
-        setDraft({ width, height: locked ? Math.max(1, Math.round(width / ratio)) : target?.height ?? size.height });
+        setDraft({ width, height: locked ? Math.max(1, Math.round(width / ratio)) : (target?.height ?? size.height) });
     };
     const applyHeight = (value: number | null) => {
         if (!size) return;
         const height = clampEdge(value);
         if (height === null) return;
-        setDraft({ width: locked ? Math.max(1, Math.round(height * ratio)) : target?.width ?? size.width, height });
+        setDraft({ width: locked ? Math.max(1, Math.round(height * ratio)) : (target?.width ?? size.width), height });
     };
     const applyPreset = (value: string | undefined) => {
         const preset = presetTargets.find((item) => `${item.width}x${item.height}` === value);
         if (preset) setDraft(preset);
     };
     return (
-        <AppModal
-            open
-            centered
-            title="调整图片尺寸"
-            width={760}
-            onCancel={onClose}
-            okText="生成新图片"
-            okButtonProps={{ disabled: !ready }}
-            onOk={() => ready && output && onConfirm({ width: output.width, height: output.height, algorithm })}
-        >
+        <AppModal open centered title="调整图片尺寸" width={760} onCancel={onClose} okText="生成新图片" okButtonProps={{ disabled: !ready }} onOk={() => ready && output && onConfirm({ width: output.width, height: output.height, algorithm })}>
             <p className="mb-4 text-sm text-muted-foreground">按目标像素重新采样并另存为新图片，原图保留。缩小会丢弃像素细节，放大不会生成新的真实细节。</p>
             <div className="grid gap-5 md:grid-cols-2">
                 <figure className="m-0 flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-surface-active p-3">

@@ -33,9 +33,7 @@ export function CanvasVideoMergeOrderDialog({ items, onMove, onCancel, onConfirm
                         <span className="w-5 shrink-0 text-center text-sm font-semibold tabular-nums text-muted-foreground">{index + 1}</span>
                         <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-black">
                             <CanvasVideoPreviewImage node={node} alt="" className="size-full object-contain" eager fallback={<Video className="size-5 text-white/40" />} />
-                            {clockLabel(node.metadata?.durationMs) ? (
-                                <span className="absolute bottom-0.5 right-1 rounded bg-black/70 px-1 text-[10px] leading-4 text-white">{clockLabel(node.metadata?.durationMs)}</span>
-                            ) : null}
+                            {clockLabel(node.metadata?.durationMs) ? <span className="absolute bottom-0.5 right-1 rounded bg-black/70 px-1 text-[10px] leading-4 text-white">{clockLabel(node.metadata?.durationMs)}</span> : null}
                         </div>
                         <div className="min-w-0 flex-1">
                             <div className="truncate text-sm">{node.title || "视频"}</div>

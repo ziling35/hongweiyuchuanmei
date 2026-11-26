@@ -282,7 +282,9 @@ export function useCanvasUpload({ canvasId, domainProjectId, nodesRef, selectedN
                 // 占位框是按默认比例建出来的；上传拿到真实画面尺寸后必须同步节点几何，
                 // 否则非 16:9 的视频会一直挤在横盒子里，表现为节点内出现黑边。
                 const sizedNode = ensureMediaNodeMinimumSize(node);
-                setNodes((current) => current.map((item) => (item.id === id ? { ...item, title: sizedNode.title, type: sizedNode.type, metadata: sizedNode.metadata, width: sizedNode.width, height: sizedNode.height, position: sizedNode.position } : item)));
+                setNodes((current) =>
+                    current.map((item) => (item.id === id ? { ...item, title: sizedNode.title, type: sizedNode.type, metadata: sizedNode.metadata, width: sizedNode.width, height: sizedNode.height, position: sizedNode.position } : item)),
+                );
                 if (domainProjectId) progress.update(translate("canvasPage.upload.writingProjectAssets"), 4);
                 const persisted = await persistMediaNode(sizedNode, { refreshProject: !batch });
                 const localOnly = metadata.storageKey && !resourceIdFromStorageKey(metadata.storageKey);
