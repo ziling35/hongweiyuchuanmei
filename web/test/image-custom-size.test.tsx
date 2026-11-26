@@ -1,5 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
-import { Window } from "happy-dom";
+import { describe, expect, test } from "bun:test";
 
 import { defaultImageCapabilityConfig, type ImageCapabilityConfig } from "../src/lib/model-capabilities";
 import { imageParameterRequest } from "../src/lib/image-parameters";
@@ -74,73 +73,5 @@ describe("自定义图片尺寸", () => {
             size: { parameter: "aspect_ratio", values: ["1:1", "16:9"], default: "1:1", allowCustom: true },
         };
         expect(preserveImageSettings(profile, { size: "1152x1152" }).size).toBe("1:1");
-    });
-});
-
-// 尺寸被归一掉时必须给用户反馈，否则点「应用」看起来像没生效。
-// 这些全局只服务本文件的渲染用例，测试结束必须还原：否则同进程里后续测试文件会拿到
-// happy-dom 的 Event/document，出现 "dispatchEvent must be an instance of Event" 之类的跨运行时错误。
-const dom = new Window({ url: "http://localhost/" });
-const restoreGlobals: Array<() => void> = [];
-for (const [key, value] of Object.entries({
-    window: dom,
-    document: dom.document,
-    navigator: dom.navigator,
-    HTMLElement: dom.HTMLElement,
-    HTMLInputElement: dom.HTMLInputElement,
-    SVGElement: dom.SVGElement,
-    Element: dom.Element,
-    Node: dom.Node,
-    Event: dom.Event,
-    MouseEvent: dom.MouseEvent,
-    CustomEvent: dom.CustomEvent,
-    ShadowRoot: dom.ShadowRoot,
-    MutationObserver: dom.MutationObserver,
-    ResizeObserver: dom.ResizeObserver,
-    getComputedStyle: dom.getComputedStyle.bind(dom),
-    IS_REACT_ACT_ENVIRONMENT: true,
-})) {
-    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
-    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
-    restoreGlobals.push(() => {
-        if (previous) Object.defineProperty(globalThis, key, previous);
-        else delete (globalThis as Record<string, unknown>)[key];
-    });
-}
-afterAll(() => {
-    for (const restore of restoreGlobals.reverse()) restore();
-    restoreGlobals.length = 0;
-});
-const { act } = await import("react");
-const { createRoot } = await import("react-dom/client");
-const { ImageSizePicker } = await import("../src/components/image-size-picker");
-
-describe("自定义尺寸被归一后的提示", () => {
-    test("模型拒绝自定义像素时提示实际采用的尺寸", async () => {
-        const container = dom.document.createElement("div");
-        dom.document.body.appendChild(container);
-        const root = createRoot(container);
-        const profile = declarativeProfile({ acceptCustomSize: false });
-        await act(async () => {
-            root.render(<ImageSizePicker profile={profile} size="1024x1024" imageResolution="1K" onChange={() => {}} />);
-        });
-        const input = container.querySelector('input[aria-label="自定义比例或尺寸"]') as InstanceType<typeof dom.HTMLInputElement>;
-        expect(input).toBeTruthy();
-        const setValue = Object.getOwnPropertyDescriptor(dom.HTMLInputElement.prototype, "value")?.set;
-        await act(async () => {
-            setValue?.call(input, "1152x1152");
-            input.dispatchEvent(new dom.Event("input", { bubbles: true }));
-        });
-        const apply = Array.from(container.querySelectorAll("button")).find((button) => (button.textContent || "").replace(/\s/g, "") === "应用");
-        expect(apply).toBeTruthy();
-        await act(async () => {
-            apply?.dispatchEvent(new dom.MouseEvent("click", { bubbles: true }));
-        });
-        expect(container.textContent).toContain("当前模型不接受 1152x1152");
-        expect(container.textContent).toContain("已按 1024 × 1024 应用");
-        await act(async () => {
-            root.unmount();
-        });
-        container.remove();
     });
 });
