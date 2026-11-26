@@ -564,6 +564,15 @@ function ImageCapabilityEditor({
                             <>
                                 <ImageSizePresetsEditor profile={profile} disabled={disabled} onChange={updateSize} />
                                 <ParameterField label="允许自定义" description="允许支持值之外的尺寸" supported={profile.size.allowCustom} disabled={disabled} onChange={(allowCustom) => updateSize({ allowCustom })} />
+                                {profile.size.parameter === "size" ? (
+                                    <ParameterField
+                                        label="按请求尺寸重采样"
+                                        description="上游只返回标准尺寸时，落盘前把产物重采样成用户请求的像素（仅 PNG/JPEG）"
+                                        supported={Boolean(profile.size.resizeToRequested)}
+                                        disabled={disabled}
+                                        onChange={(resizeToRequested) => updateSize({ resizeToRequested })}
+                                    />
+                                ) : null}
                                 <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => updateSize(patch)} />
                             </>
                         ) : null}
@@ -627,6 +636,15 @@ function ImageCapabilityEditor({
                         <>
                             <ImageSizePresetsEditor profile={profile} disabled={disabled} onChange={updateSize} />
                             <ParameterField label="允许自定义" description="允许用户输入支持值之外的尺寸" supported={profile.size.allowCustom} disabled={disabled} onChange={(allowCustom) => updateSize({ allowCustom })} />
+                            {profile.size.parameter === "size" ? (
+                                <ParameterField
+                                    label="按请求尺寸重采样"
+                                    description="上游只返回标准尺寸时，落盘前把产物重采样成用户请求的像素（仅 PNG/JPEG）"
+                                    supported={Boolean(profile.size.resizeToRequested)}
+                                    disabled={disabled}
+                                    onChange={(resizeToRequested) => updateSize({ resizeToRequested })}
+                                />
+                            ) : null}
                             <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => updateSize(patch)} />
                         </>
                     ) : null}

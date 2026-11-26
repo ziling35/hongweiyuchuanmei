@@ -1,7 +1,7 @@
 import { loadRasterImage } from "@/lib/image-raster";
-import { planImageTiles, resolveCropPixels, resolveUpscaleSize, type ImageCropRect, type ImageSplitParams, type ImageSplitPiece, type ImageUpscaleAlgorithm, type ImageUpscaleParams, type PixelSize } from "./image-operation-plan";
+import { planImageTiles, resolveCropPixels, resolveResizeTarget, resolveUpscaleSize, type ImageCropRect, type ImageSplitParams, type ImageSplitPiece, type ImageUpscaleAlgorithm, type ImageUpscaleParams, type PixelSize } from "./image-operation-plan";
 
-export { MAX_UPSCALE_LONG_EDGE, resolveUpscaleSize } from "./image-operation-plan";
+export { MAX_UPSCALE_LONG_EDGE, resolveResizeTarget, resolveUpscaleSize } from "./image-operation-plan";
 export type { ImageCropRect, ImageSplitParams, ImageSplitPiece, ImageUpscaleAlgorithm, ImageUpscaleParams } from "./image-operation-plan";
 
 type RasterCommand = {
@@ -48,7 +48,7 @@ export async function upscaleDataUrl(source: string, options: ImageUpscaleParams
     const size = dimensions(picture);
     return renderPng(picture, {
         region: { ...size, x: 0, y: 0 },
-        output: resolveUpscaleSize(size.width, size.height, options.targetLongEdge),
+        output: resolveResizeTarget(size, options),
         sampling: options.algorithm,
     });
 }

@@ -34,7 +34,7 @@ const shapes: Record<SavedCapabilityTemplate["capability"], Shape> = {
     },
     image: {
         references: { promptMaxChars: "number", maxImages: "number", maxImageBytes: "number", maskSupported: "boolean" },
-        size: { parameter: "string", values: strings, default: "string", allowCustom: "boolean", presets: [{ size: "string", tier: "string", ratio: "string", width: "number", height: "number" }], defaultTier: "string", defaultRatio: "string" },
+        size: { parameter: "string", values: strings, default: "string", allowCustom: "boolean", resizeToRequested: "boolean", presets: [{ size: "string", tier: "string", ratio: "string", width: "number", height: "number" }], defaultTier: "string", defaultRatio: "string" },
         resolution: choice,
         quality: choice,
         resolutionUsesQuality: "boolean",

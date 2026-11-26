@@ -61,6 +61,7 @@ export const koKR: DeepStringRecord<typeof zhCN> = {
         titleMerged: "병합 완성본 · {{count}}개 클립",
         mergedVideos: "{{count}}개 동영상을 병합하고 완성본 노드를 추가했습니다",
         mergeFailed: "동영상 병합 실패",
+        mergeAspectMismatch: "선택한 동영상의 화면 비율이 다릅니다({{expected}} / {{actual}}). 같은 비율의 동영상만 병합할 수 있습니다",
         titlePanorama: "{{title}} · 파노라마",
         panoramaViewerCreated: "파노라마 보기 노드를 만들었습니다",
         panoramaGeneratorCreated: "파노라마 생성 노드를 만들었습니다",

@@ -61,6 +61,7 @@ export const deDE: DeepStringRecord<typeof zhCN> = {
         titleMerged: "Zusammengeführter Schnitt · {{count}} Clips",
         mergedVideos: "{{count}} Videos zusammengeführt, Endknoten hinzugefügt",
         mergeFailed: "Zusammenführen der Videos fehlgeschlagen",
+        mergeAspectMismatch: "Die ausgewählten Videos haben unterschiedliche Seitenverhältnisse ({{expected}} vs. {{actual}}). Nur Videos mit gleichem Verhältnis lassen sich zusammenführen",
         titlePanorama: "{{title}} · Panorama",
         panoramaViewerCreated: "Panorama-Ansichtsknoten erstellt",
         panoramaGeneratorCreated: "Panorama-Generierungsknoten erstellt",

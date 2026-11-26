@@ -57,6 +57,9 @@ func validateImageCapabilityConfig(value *ImageCapabilityConfig) error {
 	if value.Size.MaxRatio != 0 && (value.Size.MaxRatio < 1 || value.Size.MaxRatio > 16) {
 		return BadAuthRequest("图片宽高比限制需在 1 到 16 之间")
 	}
+	if value.Size.ResizeToRequested && value.Size.Parameter != "size" {
+		return BadAuthRequest("开启按请求尺寸重采样时，尺寸参数必须使用精确像素（size），比例或未启用尺寸无法确定目标像素")
+	}
 	if value.ResponseFormat.Supported {
 		switch strings.ToLower(strings.TrimSpace(value.ResponseFormat.Default)) {
 		case "", "auto":

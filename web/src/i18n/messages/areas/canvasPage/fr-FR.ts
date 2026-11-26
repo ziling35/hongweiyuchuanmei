@@ -61,6 +61,7 @@ export const frFR: DeepStringRecord<typeof zhCN> = {
         titleMerged: "Montage fusionné · {{count}} extraits",
         mergedVideos: "{{count}} vidéos fusionnées, nœud final ajouté",
         mergeFailed: "Échec de la fusion vidéo",
+        mergeAspectMismatch: "Les vidéos sélectionnées ont des ratios différents ({{expected}} vs {{actual}}). Seules les vidéos de même ratio peuvent être fusionnées",
         titlePanorama: "{{title}} · Panorama",
         panoramaViewerCreated: "Nœud de visualisation panoramique créé",
         panoramaGeneratorCreated: "Nœud de génération panoramique créé",

@@ -95,6 +95,8 @@ export type ImageCapabilityConfig = {
         maxPixels?: number;
         maxEdge?: number;
         maxRatio?: number;
+        // 上游只返回标准尺寸时，由宿主在产物落盘前重采样成请求像素（仅 size 参数有效）。
+        resizeToRequested?: boolean;
     };
     resolution: { supported: boolean; values: string[]; default: string };
     quality: {

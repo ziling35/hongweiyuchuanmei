@@ -4,7 +4,7 @@ import { Tooltip } from "@/components/ui/base/tooltip";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 
 import type { MenuProps } from "antd";
-import { Check, Clapperboard, Expand, Film, Grid3X3, Image as ImageIcon, ListTree, MoreHorizontal, Plus, RefreshCw, Send, Square, Trash2, Video } from "lucide-react";
+import { Check, Clapperboard, Expand, Film, Grid3X3, Image as ImageIcon, ListTree, Merge, MoreHorizontal, Plus, RefreshCw, Send, Square, Trash2, Video } from "lucide-react";
 
 import { CanvasResourceMentionTextarea } from "@/components/canvas/canvas-resource-mention-textarea";
 import { StoryboardAssetsCell } from "@/components/canvas/storyboard-assets-cell";
@@ -42,6 +42,7 @@ export function CanvasScriptNodeContent({
     onGenerateImages,
     onGenerateVideos,
     onVideoInputModeChange,
+    onMergeVideos,
     onCreateActionBoards,
     onRetryBatch,
     onRetryBatchItem,
@@ -72,6 +73,7 @@ export function CanvasScriptNodeContent({
     onGenerateImages: (rowIds: string[]) => void;
     onGenerateVideos: (rowIds: string[]) => void;
     onVideoInputModeChange: (mode: StoryboardVideoInputMode) => void;
+    onMergeVideos: () => void;
     onCreateActionBoards: () => void;
     onRetryBatch: (batchId: string) => void;
     onRetryBatchItem: (batchId: string, itemId: string) => void;
@@ -134,10 +136,18 @@ export function CanvasScriptNodeContent({
     const pipelineDisabled = !rows.length || node.metadata?.status === "loading" || hasActiveBatchItems;
     const missingImages = Math.max(0, pipeline.images.total - pipeline.images.created);
     const missingVideos = Math.max(0, pipeline.videos.total - pipeline.videos.created);
+    const canMerge = pipeline.successfulVideoNodeIds.length >= 2;
     const allRowIds = pipeline.rows.map((item) => item.row.id);
     const moreMenuItems: MenuProps["items"] = [
         { key: "generate-images", icon: <ImageIcon className="size-3.5" />, label: "生成未完成分镜图", disabled: pipelineDisabled || pipeline.images.incomplete === 0, onClick: () => onGenerateImages(allRowIds) },
         { key: "generate-videos", icon: <Video className="size-3.5" />, label: "生成未完成视频", disabled: pipelineDisabled || pipeline.videos.incomplete === 0, onClick: () => onGenerateVideos(allRowIds) },
+        {
+            key: "merge",
+            icon: <Merge className="size-3.5" />,
+            label: canMerge ? `合并 ${pipeline.successfulVideoNodeIds.length} 段视频` : "合并成片（至少 2 段视频）",
+            disabled: !canMerge,
+            onClick: () => onMergeVideos(),
+        },
         { type: "divider" },
         {
             key: "video-input",

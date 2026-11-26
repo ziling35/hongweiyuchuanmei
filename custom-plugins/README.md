@@ -20,7 +20,7 @@
 | `custom-plugins/<id>.yingce-plugin` | 打包产物，就是导入时上传的文件 |
 | `custom-plugins/build.mjs` | 打包脚本（刷新文档 + 生成 zip + 打印 sha256） |
 
-当前自建插件：`kunrou-images`、`lumlum-video`、`volcengine-ark-seedream-suite`。
+当前自建插件：`kunrou-images`、`lumlum-video`、`volcengine-ark-seedream-suite`、`minimax-h3-local`。
 
 ## 改完怎么发布
 

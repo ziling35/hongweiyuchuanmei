@@ -11,6 +11,18 @@
     --canvas-video-control-gap: 6px;
 }
 
+/*
+ * 画布节点里的播放器必须完全由节点框决定尺寸。
+ * Vidstack 的 base.css 给视频播放器声明了 aspect-ratio: 16 / 9；一旦 height: 100% 没有被解析成
+ * 确定高度（例如父级高度尚未确定），高度就会由宽度按 16:9 反算（720 宽 → 405 高），
+ * 比节点框高出 90px 并被裁切，非 16:9 的素材因此出现错位和黑边。这里显式覆盖为基础规则。
+ */
+.canvas-video-player {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+}
+
 .canvas-video-player[data-player-variant="compact"] {
     --canvas-video-control-gap: 4px;
     --video-volume-panel-width: 42px;

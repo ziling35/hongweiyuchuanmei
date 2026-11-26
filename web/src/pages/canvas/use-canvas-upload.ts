@@ -13,7 +13,7 @@ import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
 import { audioMetadata, imageMetadata, videoMetadata } from "@/lib/canvas/canvas-generation-task-sync";
 import { createCanvasNode } from "@/lib/canvas/canvas-project-domain";
 import { isAudioFile } from "@/lib/canvas/canvas-project-generation";
-import { fitImageNodeSize, fitNodeSize, VIDEO_NODE_MAX_SIZE } from "@/lib/canvas/canvas-node-size";
+import { ensureMediaNodeMinimumSize, fitImageNodeSize, fitNodeSize, VIDEO_NODE_MAX_SIZE } from "@/lib/canvas/canvas-node-size";
 import { CANVAS_UPLOAD_ACCEPT, createFileUploadPlaceholder, uploadNodeType, uploadPercent } from "@/lib/canvas/canvas-file-upload";
 import { recordReplacedMediaVersion } from "@/lib/canvas/canvas-media-versions";
 import { resourceIdFromStorageKey, resourceStorageKey, uploadResourceFile } from "@/services/api/resources";
@@ -279,9 +279,12 @@ export function useCanvasUpload({ canvasId, domainProjectId, nodesRef, selectedN
                 };
                 // 替换文件保留旧媒体为历史版本，可在版本面板切回。
                 const node = replaceId ? recordReplacedMediaVersion(original, uploadedNode, "upload") : uploadedNode;
-                setNodes((current) => current.map((item) => (item.id === id ? { ...item, title: node.title, type: node.type, metadata: node.metadata } : item)));
+                // 占位框是按默认比例建出来的；上传拿到真实画面尺寸后必须同步节点几何，
+                // 否则非 16:9 的视频会一直挤在横盒子里，表现为节点内出现黑边。
+                const sizedNode = ensureMediaNodeMinimumSize(node);
+                setNodes((current) => current.map((item) => (item.id === id ? { ...item, title: sizedNode.title, type: sizedNode.type, metadata: sizedNode.metadata, width: sizedNode.width, height: sizedNode.height, position: sizedNode.position } : item)));
                 if (domainProjectId) progress.update(translate("canvasPage.upload.writingProjectAssets"), 4);
-                const persisted = await persistMediaNode(node, { refreshProject: !batch });
+                const persisted = await persistMediaNode(sizedNode, { refreshProject: !batch });
                 const localOnly = metadata.storageKey && !resourceIdFromStorageKey(metadata.storageKey);
                 const pendingLabel = domainProjectId ? translate("canvasPage.upload.projectAssetsSyncing") : translate("canvasPage.upload.cloudAssetsSyncing");
                 progress.done(

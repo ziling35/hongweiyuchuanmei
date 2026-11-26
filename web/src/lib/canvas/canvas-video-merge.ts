@@ -4,9 +4,9 @@ import ffmpegWasmURL from "@ffmpeg/core/wasm?url";
 import { fetchFile } from "@ffmpeg/util";
 
 import { getMediaBlob } from "@/services/file-storage";
-import { buildRecordingTranscodeArgs, resolveRecordingTranscodeTimeout } from "./canvas-video-merge-args";
+import { buildMergeArgs, buildRecordingTranscodeArgs, resolveMergeTimeout, resolveRecordingTranscodeTimeout, type MergeVideoSource } from "./canvas-video-merge-args";
 
-export type MergeVideoInput = { id: string; url?: string; storageKey?: string };
+export type MergeVideoInput = { id: string; url?: string; storageKey?: string; width?: number; height?: number; durationMs?: number; hasAudio?: boolean };
 export type MergeVideoProgress = { phase: "loading" | "reading" | "encoding"; progress: number };
 
 const FFMPEG_IDLE_MS = 30_000;
@@ -154,10 +154,15 @@ export function transcodeVideoToMp4(input: Blob, optionsOrProgress: TranscodeVid
 
 export async function mergeVideos(inputs: MergeVideoInput[], onProgress?: (progress: MergeVideoProgress) => void) {
     if (inputs.length < 2) throw new Error("至少选择 2 个视频才能合并");
+    const totalMilliseconds = inputs.reduce((sum, input) => sum + (typeof input.durationMs === "number" && input.durationMs > 0 ? input.durationMs : 0), 0);
+    const totalSeconds = totalMilliseconds > 0 ? totalMilliseconds / 1000 : undefined;
     return runFFmpegTask(async (ffmpeg) => {
         const serial = (ffmpegJobSerial += 1);
         const files: string[] = [];
+        const outputName = `merge-${serial}.mp4`;
+        let healthy = true;
         try {
+            const sources: MergeVideoSource[] = [];
             for (let index = 0; index < inputs.length; index += 1) {
                 const input = inputs[index];
                 const storedBlob = input.storageKey ? await getMediaBlob(input.storageKey) : null;
@@ -173,24 +178,68 @@ export async function mergeVideos(inputs: MergeVideoInput[], onProgress?: (progr
                 const name = `merge-${serial}-${index}.mp4`;
                 await ffmpeg.writeFile(name, await fetchFile(blob));
                 files.push(name);
+                sources.push({ name, width: input.width, height: input.height, hasAudio: input.hasAudio });
                 onProgress?.({ phase: "reading", progress: Math.round(((index + 1) / inputs.length) * 45) });
             }
-            const concatList = files.map((file) => `file '${file}'`).join("\n");
-            const concatName = `merge-${serial}.txt`;
-            const outputName = `merge-${serial}.mp4`;
-            files.push(concatName, outputName);
-            await ffmpeg.writeFile(concatName, concatList);
-            onProgress?.({ phase: "encoding", progress: 55 });
-            let exitCode = await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", concatName, "-c", "copy", outputName]);
-            if (exitCode !== 0) {
-                exitCode = await ffmpeg.exec(["-f", "concat", "-safe", "0", "-i", concatName, "-c:v", "libx264", "-c:a", "aac", "-movflags", "+faststart", outputName]);
+            const plan = buildMergeArgs(sources, outputName);
+            files.push(outputName);
+            const timeout = resolveMergeTimeout(totalSeconds);
+            const logs: string[] = [];
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const onLog = ({ message }: { message: string }) => {
+                if (!message) return;
+                logs.push(message);
+                if (logs.length > 40) logs.shift();
+            };
+            const onEncodeProgress = ({ time }: { time: number }) => {
+                if (!totalSeconds || !Number.isFinite(time) || time <= 0) return;
+                onProgress?.({ phase: "encoding", progress: Math.min(99, Math.round(46 + (time / 1e6 / totalSeconds) * 53)) });
+            };
+            onProgress?.({ phase: "encoding", progress: 46 });
+            const runPlan = async (args: string[]) => {
+                let code = 1;
+                try {
+                    code = await Promise.race([
+                        ffmpeg.exec(args, timeout),
+                        new Promise<number>((_, reject) => {
+                            timer = setTimeout(() => reject(new Error("视频合并超时：片段较长时请缩短后重试")), timeout + 15_000);
+                        }),
+                    ]);
+                } finally {
+                    if (timer) clearTimeout(timer);
+                    timer = undefined;
+                }
+                return code;
+            };
+            ffmpeg.on("log", onLog);
+            ffmpeg.on("progress", onEncodeProgress);
+            let exitCode = 1;
+            try {
+                exitCode = await runPlan(plan.args);
+                if (exitCode !== 0 && plan.withAudio) {
+                    // 元数据缺失时无法预判哪一段真的没有音轨：去掉音轨重试一次，而不是让整次合并失败。
+                    onProgress?.({ phase: "encoding", progress: 47 });
+                    exitCode = await runPlan(buildMergeArgs(sources, outputName, { withAudio: false }).args);
+                }
+            } catch (error) {
+                healthy = false;
+                throw error instanceof Error && error.message.startsWith("视频合并超时") ? error : new Error("视频合并中断，请重试", { cause: error });
+            } finally {
+                ffmpeg.off("log", onLog);
+                ffmpeg.off("progress", onEncodeProgress);
             }
-            if (exitCode !== 0) throw new Error("视频编码失败，请确认视频编码格式兼容");
+            if (exitCode !== 0) {
+                healthy = false;
+                console.error("视频合并失败", { exitCode, segments: inputs.length, logs: logs.slice(-12) });
+                throw new Error("视频编码失败，请确认视频编码格式兼容");
+            }
             const output = await ffmpeg.readFile(outputName);
             onProgress?.({ phase: "encoding", progress: 100 });
             return new Blob([output as BlobPart], { type: "video/mp4" });
         } finally {
             await Promise.all(files.map((file) => ffmpeg.deleteFile(file).catch(() => undefined)));
+            // concat 滤镜失败后 FFmpeg 实例可能停在异常状态，重置以免污染后续任务。
+            if (!healthy) resetFFmpeg(ffmpeg);
         }
     }, onProgress);
 }

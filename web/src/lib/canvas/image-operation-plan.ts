@@ -11,7 +11,11 @@ export interface ImageCropRect extends PixelSize {
 
 export type ImageUpscaleAlgorithm = "nearest" | "bilinear" | "high";
 export interface ImageUpscaleParams {
-    targetLongEdge: number;
+    /** 与 width/height 二选一：按长边等比缩放到该像素值。 */
+    targetLongEdge?: number;
+    /** 与 targetLongEdge 二选一：精确目标像素；只给一端时按原图比例推算另一端。 */
+    width?: number;
+    height?: number;
     algorithm: ImageUpscaleAlgorithm;
 }
 export interface ImageSplitParams {
@@ -37,6 +41,29 @@ export function resolveUpscaleSize(width: number, height: number, requested: num
     if (!Number.isFinite(requested) || requested <= 0) throw new RangeError("目标尺寸无效");
     const edge = Math.max(1, Math.min(MAX_UPSCALE_LONG_EDGE, Math.round(requested)));
     return width >= height ? { width: edge, height: Math.max(1, Math.round((height / width) * edge)) } : { width: Math.max(1, Math.round((width / height) * edge)), height: edge };
+}
+
+/** 目标尺寸上限与 resolveUpscaleSize 一致，避免单边超出画布可承载的像素。 */
+function checkedTarget(target: PixelSize): PixelSize {
+    assertPixelSize(target);
+    if (Math.max(target.width, target.height) > MAX_UPSCALE_LONG_EDGE) {
+        throw new RangeError(`目标尺寸最长边不能超过 ${MAX_UPSCALE_LONG_EDGE}px`);
+    }
+    return target;
+}
+
+/**
+ * 解析调整尺寸的目标像素：显式宽高优先，其次按长边等比。
+ * 允许缩小——模型只给标准尺寸时，仍可把结果压到用户真正要交付的尺寸。
+ */
+export function resolveResizeTarget(size: PixelSize, params: Pick<ImageUpscaleParams, "targetLongEdge" | "width" | "height">): PixelSize {
+    assertPixelSize(size);
+    const { targetLongEdge, width, height } = params;
+    if (width != null && height != null) return checkedTarget({ width, height });
+    if (width != null) return checkedTarget({ width, height: Math.max(1, Math.round((size.height / size.width) * width)) });
+    if (height != null) return checkedTarget({ width: Math.max(1, Math.round((size.width / size.height) * height)), height });
+    if (targetLongEdge != null) return checkedTarget(resolveUpscaleSize(size.width, size.height, targetLongEdge));
+    throw new RangeError("请指定目标宽高或长边");
 }
 
 export function resolveCropPixels(size: PixelSize, selection?: ImageCropRect): ImageCropRect {

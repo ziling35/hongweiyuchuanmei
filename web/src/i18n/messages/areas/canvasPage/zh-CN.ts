@@ -60,6 +60,7 @@ export const zhCN = {
         titleMerged: "合并成片 · {{count}} 段",
         mergedVideos: "已合并 {{count}} 段视频，成片节点已添加",
         mergeFailed: "视频合并失败",
+        mergeAspectMismatch: "所选视频画幅不一致（{{expected}} 与 {{actual}}），只能合并同比例视频",
         titlePanorama: "{{title}} · 全景",
         panoramaViewerCreated: "已创建全景查看节点",
         panoramaGeneratorCreated: "已创建全景生成节点",

@@ -77,6 +77,9 @@ type ImageSizeConfig struct {
 	MaxPixels int     `json:"maxPixels,omitempty"`
 	MaxEdge   int     `json:"maxEdge,omitempty"`
 	MaxRatio  float64 `json:"maxRatio,omitempty"`
+	// ResizeToRequested 让宿主在产物落盘前把图片重采样成用户请求的精确像素，
+	// 用于上游只接受标准尺寸、会静默改尺寸的渠道。仅 Parameter="size" 时有效。
+	ResizeToRequested bool `json:"resizeToRequested,omitempty"`
 }
 
 // 未声明像素约束时的默认值，与历史硬编码保持一致。

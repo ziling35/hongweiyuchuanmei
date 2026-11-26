@@ -23,6 +23,7 @@ import { getResource, getResourceAccess, resolveResourceAccessURL, resourceFileU
 import { uploadImage } from "@/services/image-storage";
 import { imageMetadata } from "@/lib/canvas/canvas-generation-task-sync";
 import { isCanvasImageSourceNode } from "@/lib/canvas/canvas-image-source";
+import { videoAspectConflict, videoFrameSizeFromMetadata } from "@/lib/canvas/video-merge-ratio";
 import copyToClipboard from "copy-to-clipboard";
 import { saveAs } from "file-saver";
 import { serializeSrtEntries } from "@/lib/timeline/srt-parser";
@@ -135,7 +136,8 @@ import { canvasAssetHandoffAttempt, finalizeCanvasAssetHandoff, uninsertedCanvas
 import { expandBatchSourceNodeIds } from "@/lib/canvas/canvas-batch-connection";
 import { isFrameNode } from "@/lib/canvas/canvas-frame";
 import { deriveStoryboardPipelineProgress } from "@/lib/canvas/canvas-storyboard-progress";
-import { CanvasOperationChangeToast, CanvasUploadStatusToast } from "./canvas-project-feedback";
+import { CanvasMergeStatusToast, CanvasOperationChangeToast, CanvasUploadStatusToast } from "./canvas-project-feedback";
+import { CanvasVideoMergeOrderDialog } from "@/components/canvas/canvas-video-merge-order-dialog";
 import { getGenerationCount } from "@/lib/canvas/canvas-project-generation";
 import { canvasReferenceImageDimensions } from "@/lib/canvas/canvas-reference-image-size";
 import { cancelGenerationTask } from "@/services/api/task-center";
@@ -925,6 +927,14 @@ function CanvasViewportPage() {
         setPanoramaConfigNodeId,
         generateEmotionNode,
         handleSegmentConfirm,
+        mergeSelectedVideos,
+        mergeVideosByIds,
+        mergeVideoProgress,
+        mergeOrderItems,
+        requestMergeOrder,
+        moveMergeOrder,
+        confirmMergeOrder,
+        cancelMergeOrder,
         regionEditImageNode,
         regionEditNodeId,
         imageEditNodeId,
@@ -2446,6 +2456,7 @@ function CanvasViewportPage() {
                         onGenerateImages={(rowIds) => void generateScriptImages(contentNode.id, rowIds)}
                         onGenerateVideos={(rowIds) => (contentNode.metadata?.storyboardVideoInputMode === "keyframe" ? void generateScriptVideos(contentNode.id, rowIds) : void createAndGenerateScriptVideos(contentNode.id, rowIds))}
                         onVideoInputModeChange={(storyboardVideoInputMode) => handleConfigNodeChange(contentNode.id, { storyboardVideoInputMode })}
+                        onMergeVideos={() => requestMergeOrder(pipeline.successfulVideoNodeIds)}
                         onCreateActionBoards={() => void createScriptActionBoards(contentNode.id)}
                         onRetryBatch={(batchId) => retryFailedBatchItems(contentNode.id, batchId)}
                         onRetryBatchItem={(batchId, itemId) => retryFailedBatchItems(contentNode.id, batchId, itemId)}
@@ -3347,19 +3358,23 @@ function CanvasViewportPage() {
                                     containerRef={containerRef}
                                     count={selectedNodeBounds.count}
                                     selectedVideoCount={selectedVideoNodes.length}
-                                    mergingVideos={false}
+                                    mergingVideos={Boolean(mergeVideoProgress)}
+                                    videoMergeAspectMismatch={Boolean(videoAspectConflict(selectedVideoNodes.map((node) => videoFrameSizeFromMetadata(node.metadata))))}
                                     onAlign={alignSelectedNodes}
                                     onArrange={arrangeSelectedNodes}
                                     onCreateStoryboard={createStoryboardGroup}
                                     onCreateFrame={createFrameAroundSelection}
                                     onCreateReferenceGroup={createReferenceGroup}
                                     onBatchConnect={() => beginBatchConnectionMode(batchSourceNodeIds)}
+                                    onMergeVideos={() => void mergeSelectedVideos()}
                                     onCompareImages={selectedNodeIds.size === 2 && selectionImages.length === 2 ? () => setComparedImageIds(selectionImages.map((node) => node.id)) : undefined}
                                     onSendSelectionToAgent={() => sendSelectionToAgent()}
                                 />
                             ) : null}
 
                             {uploadStatus ? <CanvasUploadStatusToast status={uploadStatus} theme={theme} /> : null}
+                            {mergeVideoProgress ? <CanvasMergeStatusToast progress={mergeVideoProgress} theme={theme} /> : null}
+                            {mergeOrderItems ? <CanvasVideoMergeOrderDialog items={mergeOrderItems} onMove={moveMergeOrder} onCancel={cancelMergeOrder} onConfirm={confirmMergeOrder} /> : null}
                             {lastAgentChange ? (
                                 <CanvasOperationChangeToast
                                     change={lastAgentChange}

@@ -61,6 +61,7 @@ export const jaJP: DeepStringRecord<typeof zhCN> = {
         titleMerged: "結合した完成動画 · {{count}} 区間",
         mergedVideos: "{{count}} 本の動画を結合し、完成動画ノードを追加しました",
         mergeFailed: "動画の結合に失敗しました",
+        mergeAspectMismatch: "選択した動画のアスペクト比が一致しません（{{expected}} と {{actual}}）。同じ比率の動画のみ結合できます",
         titlePanorama: "{{title}} · パノラマ",
         panoramaViewerCreated: "パノラマ表示ノードを作成しました",
         panoramaGeneratorCreated: "パノラマ生成ノードを作成しました",

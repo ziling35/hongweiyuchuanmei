@@ -15,12 +15,14 @@ type CanvasProjectSelectionToolbarProps = {
     count: number;
     selectedVideoCount: number;
     mergingVideos: boolean;
+    videoMergeAspectMismatch: boolean;
     onAlign: (mode: CanvasAlignmentMode) => void;
     onArrange: (mode: "row" | "column" | "grid" | "flow") => void;
     onCreateStoryboard: () => void;
     onCreateFrame: () => void;
     onCreateReferenceGroup: () => void;
     onBatchConnect: () => void;
+    onMergeVideos?: () => void;
     onCompareImages?: () => void;
     onSendSelectionToAgent: () => void;
 };
@@ -31,12 +33,14 @@ export function CanvasProjectSelectionToolbar({
     count,
     selectedVideoCount,
     mergingVideos,
+    videoMergeAspectMismatch,
     onAlign,
     onArrange,
     onCreateStoryboard,
     onCreateFrame,
     onCreateReferenceGroup,
     onBatchConnect,
+    onMergeVideos,
     onCompareImages,
     onSendSelectionToAgent,
 }: CanvasProjectSelectionToolbarProps) {
@@ -50,6 +54,7 @@ export function CanvasProjectSelectionToolbar({
         onCreateFrame,
         onCreateReferenceGroup,
         onBatchConnect,
+        onMergeVideos,
         onCompareImages,
         onSendSelectionToAgent,
     } as Partial<ToolbarHandlers> as ToolbarHandlers;
@@ -67,6 +72,7 @@ export function CanvasProjectSelectionToolbar({
         extractingAudio: false,
         trimmingVideo: false,
         mergingVideos,
+        videoMergeAspectMismatch,
         addPanelOpen: false,
         appearancePanelOpen: false,
         settingsPanelOpen: false,

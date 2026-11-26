@@ -3,6 +3,7 @@ import { imageHostControls, imageParameterAccepts, type ImageParameter } from "@
 import { resolveModelRequestConfig, type AiConfig } from "@/stores/use-config-store";
 import type { ModelProtocol } from "@/lib/model-protocols";
 import { currentGenerationBatchLimit } from "@/lib/generation-batch-limit";
+import { imageSizeLimits, validateImageSize } from "@/services/api/image-validation";
 
 export type ImageSettings = Pick<Partial<AiConfig>, "size" | "quality" | "imageResolution" | "imageParameters" | "count" | "transparentBackground">;
 type VideoSettings = { seconds?: string; ratio?: string; resolution?: string };
@@ -64,8 +65,27 @@ export function preserveVideoBoolean(supported: boolean, initial: boolean, raw?:
     return supported ? raw || String(initial) : "false";
 }
 
+/**
+ * 目标模型是否接受这个显式像素尺寸：既要在 size 参数声明的取值内，也要满足步长与像素范围。
+ * 只用于区分「用户填的像素」和「按比例换算的预设像素」，不代表请求一定合法。
+ */
+function acceptsCustomPixelSize(profile: ImageCapabilityConfig, size: string) {
+    if (profile.size.parameter !== "size" || !profile.size.allowCustom) return false;
+    const field = profile.parameters?.find((item) => item.name === "size" && item.enabled !== false);
+    if (field && !imageParameterAccepts(field, size)) return false;
+    const [width, height] = size.toLowerCase().split("x").map(Number);
+    try {
+        validateImageSize(width, height, true, imageSizeLimits(profile));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function imageSizeForSelection(profile: ImageCapabilityConfig, size: string, resolution?: string) {
     if (profile.size.values.includes(size)) return size;
+    // 显式像素优先：目标模型接受用户填的尺寸就原样保留，只有「比例」选择才换算成预设像素。
+    if (/^\d+x\d+$/i.test(size) && acceptsCustomPixelSize(profile, size)) return size;
     const declaredRatio = profile.size.presets?.find((preset) => preset.size === size)?.ratio;
     const pixels = /^(\d+)x(\d+)$/i.exec(size);
     const ratioMatches = (ratio: string) => {

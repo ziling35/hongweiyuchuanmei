@@ -61,6 +61,7 @@ export const enUS: DeepStringRecord<typeof zhCN> = {
         titleMerged: "Merged cut · {{count}} clips",
         mergedVideos: "Merged {{count}} videos and added the final node",
         mergeFailed: "Video merge failed",
+        mergeAspectMismatch: "Selected videos have different aspect ratios ({{expected}} vs {{actual}}). Only same-ratio videos can be merged",
         titlePanorama: "{{title}} · Panorama",
         panoramaViewerCreated: "Panorama viewer node created",
         panoramaGeneratorCreated: "Panorama generation node created",

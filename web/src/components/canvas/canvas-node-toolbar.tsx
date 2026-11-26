@@ -368,6 +368,7 @@ export function CanvasNodeToolbar({
         trimmingVideo,
         rotatingImage,
         mergingVideos: false,
+        videoMergeAspectMismatch: false,
         addPanelOpen: false,
         appearancePanelOpen: false,
         settingsPanelOpen: false,

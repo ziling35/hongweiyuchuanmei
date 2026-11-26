@@ -86,6 +86,8 @@ export function ImageSizePicker({
           (visibleTiers.includes(chosenTier) ? chosenTier : visibleTiers[0]) ||
           "1k";
     const choices = presets.filter((preset) => preset.tier === tier);
+    // 自定义像素被目标模型拒绝时，上层会把它归一成同比例的预设像素；这里说明实际采用的尺寸。
+    const customSizeRejected = Boolean(customPreset && size !== "auto" && imagePresetValue(profile, customPreset) !== size);
     const select = (preset: ImageResolutionOption) => {
         if (!available(preset.tier)) return;
         if (profile.resolution.supported && canSelectResolution && !canSelectResolution(preset.tier)) return;
@@ -243,6 +245,11 @@ export function ImageSizePicker({
                         <Input aria-label="自定义比例或尺寸" placeholder="16:9 或 1824x1024" value={custom} onChange={(event) => setCustom(event.target.value)} onPressEnter={applyCustom} />
                         <Button onClick={applyCustom}>应用</Button>
                     </div>
+                    {customSizeRejected && !error ? (
+                        <p className="image-size-hint" role="status">
+                            当前模型不接受 {customPreset?.size}，已按 {active ? `${active.width} × ${active.height}` : size.replace("x", " × ")} 应用
+                        </p>
+                    ) : null}
                 </details>
             ) : null}
             {error ? (

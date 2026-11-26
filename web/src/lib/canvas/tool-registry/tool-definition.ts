@@ -62,6 +62,8 @@ export type ToolbarHandlers = {
     onCreateFrame: () => void;
     onCreateReferenceGroup: () => void;
     onBatchConnect: () => void;
+    /** 把选中的多个视频按顺序拼成一段成片；只读分享页等不提供时入口自动隐藏。 */
+    onMergeVideos?: () => void;
     onCompareImages?: () => void;
     onSendSelectionToAgent: () => void;
     // 节点悬停工具栏——节点操作（均接收当前节点）
@@ -132,6 +134,8 @@ export type ToolContext = {
     rotatingImage?: boolean;
     /** 合并视频中（多选工具栏用） */
     mergingVideos: boolean;
+    /** 所选视频画幅不一致（多选工具栏用）：只允许同比例视频合并。 */
+    videoMergeAspectMismatch: boolean;
     /** 主工具栏面板开关状态（仅主工具栏使用） */
     addPanelOpen: boolean;
     appearancePanelOpen: boolean;

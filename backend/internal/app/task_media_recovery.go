@@ -245,6 +245,10 @@ func (s *Service) materializeTaskMedia(ctx context.Context, task *model.Task, co
 			if err := s.saveMediaCheckpoint(task, checkpoint, stage); err != nil {
 				return nil, err
 			}
+			// 上游只接受标准尺寸时，按能力开关把产物重采样成用户请求的像素。
+			if checkpoint.Mode == "image" {
+				s.applyImageResizeCompensation(task, config, path)
+			}
 			started := time.Now()
 			var fallbackCause error
 			resource, fallbackCause, err = s.storeTaskMediaFile(task, index, path, item.MIMEType, checkpoint.Mode, resource)

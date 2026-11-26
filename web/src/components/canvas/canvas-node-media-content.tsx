@@ -106,7 +106,6 @@ export function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlay
     const subtitleEntries = node.metadata?.subtitleEntries || [];
     const subtitleStyle = node.metadata?.subtitleStyle || createDefaultSubtitleStyle();
     const [currentTimeMs, setCurrentTimeMs] = useState(0);
-    const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
     const [videoReady, setVideoReady] = useState(false);
     // 播放器身份是节点上的媒体（storageKey），不是当前签名地址：续签只换 src，不重建播放器、不退回静态预览。
     const playerKey = node.metadata?.storageKey || node.id;
@@ -127,9 +126,6 @@ export function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlay
             const width = video.videoWidth;
             const height = video.videoHeight;
             const durationMs = Number.isFinite(video.duration) && video.duration > 0 ? Math.round(video.duration * 1000) : 0;
-            if (width > 0 && height > 0) {
-                setVideoSize({ width, height });
-            }
             if (width <= 0 && height <= 0 && durationMs <= 0) return;
             updateMediaNode?.(node.id, (current) => {
                 const metadata = current.metadata;
@@ -164,9 +160,6 @@ export function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlay
     if (!node.metadata?.content && !node.metadata?.storageKey) return <EmptyMediaContent icon={<Video className="size-7 opacity-35" />} label="空视频节点" color={theme.node.placeholder} />;
     if (!mediaActive) return <InactiveVideoPreview node={node} theme={theme} onPlay={() => onMediaPlayRequest?.(node.id)} />;
 
-    const sourceRatio = (videoSize?.width || node.metadata?.naturalWidth || node.width) / Math.max(1, videoSize?.height || node.metadata?.naturalHeight || node.height);
-    const fitHeight = Math.min(node.height, node.width / Math.max(0.01, sourceRatio));
-    const fitWidth = Math.round(fitHeight * sourceRatio);
     const activeEntry = subtitleEntries.find((entry) => currentTimeMs >= entry.startMs && currentTimeMs < entry.endMs);
     const activeHighlight = activeEntry ? (node.metadata?.subtitleHighlights || []).find((item) => item.entryIndex === activeEntry.index) : undefined;
 
@@ -187,7 +180,9 @@ export function VideoNodeContent({ node, theme, mediaActive = false, onMediaPlay
                 <MediaLoadingState icon={<LoaderCircle className="size-5 animate-spin" />} label={loading ? "正在加载视频" : "视频资源不可用"} />
             ) : null}
             {url ? (
-                <div className={`relative z-[1] transition-opacity duration-150 ${videoReady ? "opacity-100" : "opacity-0"}`} style={{ width: fitWidth, height: Math.round(fitHeight) }}>
+                /* 不能依赖 flex 布局把这一层撑开：它作为 flex item 会被压成内容宽度（实测只有节点的一半），
+                   播放器再按 Vidstack 的 16:9 反算尺寸，非 16:9 的素材就被挤出一圈黑边。绝对定位直接铺满。 */
+                <div className={`absolute inset-0 z-[1] transition-opacity duration-150 ${videoReady ? "opacity-100" : "opacity-0"}`}>
                     <VideoPlayer
                         key={playerKey}
                         src={url}

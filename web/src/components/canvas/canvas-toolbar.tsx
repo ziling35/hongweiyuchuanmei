@@ -244,6 +244,7 @@ export function CanvasToolbar({
         extractingAudio: false,
         trimmingVideo: false,
         mergingVideos: false,
+        videoMergeAspectMismatch: false,
         addPanelOpen: panel === "add",
         appearancePanelOpen: panel === "appearance",
         settingsPanelOpen: settingsOpen,

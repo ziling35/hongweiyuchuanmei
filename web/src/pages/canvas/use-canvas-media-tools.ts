@@ -55,7 +55,10 @@ import { IMAGE_PROMPT_REVERSE } from "@/lib/prompts";
 import { createPortraitTextureNode, createNineGridNode } from "@/lib/canvas/canvas-image-source";
 import { captureVideoFrames } from "@/lib/canvas/canvas-video-frame";
 import { buildVideoFrameNodes } from "@/lib/canvas/canvas-video-frame-nodes";
+import { mergeVideos, type MergeVideoProgress } from "@/lib/canvas/canvas-video-merge";
 import { extractVideoAudio, trimVideoSegment } from "@/lib/canvas/canvas-video-segment";
+import { defaultMergeOrder, moveMergeOrderItem, orderNodesByIds } from "@/lib/canvas/canvas-video-merge-order";
+import { videoAspectConflict, videoFrameSizeFromMetadata } from "@/lib/canvas/video-merge-ratio";
 import { generationErrorMessage } from "@/lib/generation-error";
 import { modelCapabilityConfigFor } from "@/lib/model-capabilities";
 import { defaultImageParamsForModel, modelCompatibilityError } from "@/lib/model-selection";
@@ -161,6 +164,8 @@ export function useCanvasMediaTools({
     const [emotionNodeId, setEmotionNodeId] = useState<string | null>(null);
     const [frameDialogNodeId, setFrameDialogNodeId] = useState<string | null>(null);
     const [extractingVideoFramesNodeId, setExtractingVideoFramesNodeId] = useState<string | null>(null);
+    const [mergeVideoProgress, setMergeVideoProgress] = useState<MergeVideoProgress | null>(null);
+    const mergeVideoRunningRef = useRef(false);
     const [segmentDialogNodeId, setSegmentDialogNodeId] = useState<string | null>(null);
     const [segmentDialogMode, setSegmentDialogMode] = useState<"audio" | "video" | null>(null);
     const [segmentRunningMode, setSegmentRunningMode] = useState<"audio" | "video" | null>(null);
@@ -619,6 +624,126 @@ export function useCanvasMediaTools({
         },
         [effectiveConfig, message, runExtractVideoAudio, runTrimVideoSegments],
     );
+
+    // 合并成片分两步：先把选中的视频交给排序面板确认顺序，再按确认的顺序拼接。
+    const [mergeOrderItems, setMergeOrderItems] = useState<CanvasNodeData[] | null>(null);
+    const requestMergeOrder = useCallback((videoNodeIds: string[]) => {
+        if (mergeVideoRunningRef.current) return;
+        const requestedIds = new Set(videoNodeIds);
+        const eligible = nodesRef.current.filter((node) => requestedIds.has(node.id) && node.type === CanvasNodeType.Video && Boolean(node.metadata?.content));
+        if (eligible.length < 2) {
+            message.warning(translate("canvasPage.mediaTools.selectTwoVideos"));
+            return;
+        }
+        // 画幅不一致的视频直拼一定出坏片，先在做排序之前拦掉，避免让用户白排一遍。
+        const aspectConflict = videoAspectConflict(eligible.map((node) => videoFrameSizeFromMetadata(node.metadata)));
+        if (aspectConflict) {
+            message.warning(
+                translate("canvasPage.mediaTools.mergeAspectMismatch", {
+                    expected: `${aspectConflict.expected.width}×${aspectConflict.expected.height}`,
+                    actual: `${aspectConflict.actual.width}×${aspectConflict.actual.height}`,
+                }),
+            );
+            return;
+        }
+        setMergeOrderItems(orderNodesByIds(eligible, defaultMergeOrder(eligible)));
+    }, [message, nodesRef]);
+    const moveMergeOrder = useCallback((id: string, delta: -1 | 1) => {
+        setMergeOrderItems((current) => (current ? moveMergeOrderItem(current, id, delta) : current));
+    }, []);
+    const cancelMergeOrder = useCallback(() => setMergeOrderItems(null), []);
+    const mergeVideosByIds = useCallback(
+        async (videoNodeIds: string[], options?: { order?: string[] }) => {
+            if (mergeVideoRunningRef.current) return;
+            const requestedIds = new Set(videoNodeIds);
+            const eligible = nodesRef.current.filter((node) => requestedIds.has(node.id) && node.type === CanvasNodeType.Video && Boolean(node.metadata?.content));
+            // 排序面板确认的顺序优先；没传时沿用镜头号/画布位置的默认顺序。
+            const videos = orderNodesByIds(eligible, options?.order ?? defaultMergeOrder(eligible));
+            if (videos.length < 2) {
+                message.warning(translate("canvasPage.mediaTools.selectTwoVideos"));
+                return;
+            }
+            // 画幅不一致的视频直拼会在成片里留下黑边或拉伸，这里直接拒绝而不是生成一段坏成片。
+            const aspectConflict = videoAspectConflict(videos.map((node) => videoFrameSizeFromMetadata(node.metadata)));
+            if (aspectConflict) {
+                message.warning(
+                    translate("canvasPage.mediaTools.mergeAspectMismatch", {
+                        expected: `${aspectConflict.expected.width}×${aspectConflict.expected.height}`,
+                        actual: `${aspectConflict.actual.width}×${aspectConflict.actual.height}`,
+                    }),
+                );
+                return;
+            }
+            mergeVideoRunningRef.current = true;
+            setMergeVideoProgress({ phase: "reading", progress: 0 });
+            try {
+                const blob = await mergeVideos(
+                    videos.map((node) => ({
+                        id: node.id,
+                        url: node.metadata?.content,
+                        storageKey: node.metadata?.storageKey,
+                        width: node.metadata?.naturalWidth,
+                        height: node.metadata?.naturalHeight,
+                        durationMs: node.metadata?.durationMs,
+                        hasAudio: node.metadata?.hasAudio,
+                    })),
+                    setMergeVideoProgress,
+                );
+                setMergeVideoProgress({ phase: "encoding", progress: 98 });
+                const uploaded = await storeGeneratedVideo({ blob });
+                const size = fitNodeSize(uploaded.width || 1280, uploaded.height || 720, VIDEO_NODE_MAX_SIZE.width, VIDEO_NODE_MAX_SIZE.height);
+                const left = Math.max(...videos.map((node) => node.position.x + node.width)) + 120;
+                const top = Math.min(...videos.map((node) => node.position.y));
+                const mergedNode = createCanvasNode(
+                    CanvasNodeType.Video,
+                    { x: left + size.width / 2, y: top + size.height / 2 },
+                    {
+                        ...videoMetadata(uploaded),
+                        prompt: `按确认顺序合并 ${videos.length} 段视频`,
+                        workflowKind: "final",
+                        workflowTitle: translate("canvasPage.mediaTools.mergeFinalTitle"),
+                        videoEditOperation: "concat",
+                        status: NODE_STATUS_SUCCESS,
+                    },
+                );
+                mergedNode.title = translate("canvasPage.mediaTools.titleMerged", { count: videos.length });
+                mergedNode.width = size.width;
+                mergedNode.height = size.height;
+                mergedNode.position = { x: left, y: top };
+                const links = videos.map((node) => ({ id: nanoid(), fromNodeId: node.id, toNodeId: mergedNode.id }));
+                const nextNodes = [...nodesRef.current, mergedNode];
+                const nextConnections = [...connectionsRef.current, ...links];
+                nodesRef.current = nextNodes;
+                connectionsRef.current = nextConnections;
+                setNodes(nextNodes);
+                setConnections(nextConnections);
+                const selection = new Set([mergedNode.id]);
+                selectedNodeIdsRef.current = selection;
+                setSelectedNodeIds(selection);
+                setSelectedConnectionId(null);
+                setDialogNodeId(null);
+                await persistMediaNodes([mergedNode]);
+                setMergeVideoProgress({ phase: "encoding", progress: 100 });
+                message.success(translate("canvasPage.mediaTools.mergedVideos", { count: videos.length }));
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : translate("canvasPage.mediaTools.mergeFailed"));
+            } finally {
+                mergeVideoRunningRef.current = false;
+                window.setTimeout(() => setMergeVideoProgress(null), 700);
+            }
+        },
+        [connectionsRef, message, nodesRef, persistMediaNodes, selectedNodeIdsRef, setConnections, setDialogNodeId, setNodes, setSelectedConnectionId, setSelectedNodeIds],
+    );
+
+    const confirmMergeOrder = useCallback(() => {
+        const ordered = mergeOrderItems;
+        setMergeOrderItems(null);
+        if (!ordered || ordered.length < 2) return;
+        const order = ordered.map((node) => node.id);
+        void mergeVideosByIds(order, { order });
+    }, [mergeOrderItems, mergeVideosByIds]);
+    // 多选工具栏点「合并成片」先打开排序面板，确认后才开始编码。
+    const mergeSelectedVideos = useCallback(() => requestMergeOrder(Array.from(selectedNodeIdsRef.current)), [requestMergeOrder, selectedNodeIdsRef]);
 
     const openPanoramaConfig = useCallback((node: CanvasNodeData) => {
         setPanoramaConfigNodeId(node.id);
@@ -2100,6 +2225,14 @@ export function useCanvasMediaTools({
         extractingVideoFramesNodeId,
         frameDialogNodeId,
         handleSegmentConfirm,
+        mergeSelectedVideos,
+        mergeVideosByIds,
+        mergeVideoProgress,
+        mergeOrderItems,
+        requestMergeOrder,
+        moveMergeOrder,
+        confirmMergeOrder,
+        cancelMergeOrder,
         generateAngleNode,
         generateNineGridNode,
         generateLightingNode,

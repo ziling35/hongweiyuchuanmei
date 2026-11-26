@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { planImageTiles, resolveCropPixels, resolveUpscaleSize } from "../src/lib/canvas/image-operation-plan";
+import { planImageTiles, resolveCropPixels, resolveResizeTarget, resolveUpscaleSize } from "../src/lib/canvas/image-operation-plan";
 import { resizeSelection, selectAspect, translateSelection, type CropGrip } from "../src/lib/canvas/image-crop-selection";
 import { invertSelectionAlpha } from "../src/lib/canvas/image-mask-document";
 
@@ -31,6 +31,19 @@ describe("图片工具像素合同", () => {
     test("缩放保持宽高比并限制长边", () => {
         expect(resolveUpscaleSize(300, 200, 9000)).toEqual({ width: 4096, height: 2731 });
         expect(resolveUpscaleSize(200, 300, 1024)).toEqual({ width: 683, height: 1024 });
+    });
+    test("精确尺寸允许缩小，单边缺失按原图比例补齐", () => {
+        expect(resolveResizeTarget({ width: 1024, height: 1024 }, { width: 800, height: 800 })).toEqual({ width: 800, height: 800 });
+        expect(resolveResizeTarget({ width: 1024, height: 1536 }, { width: 800, height: 1200 })).toEqual({ width: 800, height: 1200 });
+        expect(resolveResizeTarget({ width: 1024, height: 1024 }, { width: 800 })).toEqual({ width: 800, height: 800 });
+        expect(resolveResizeTarget({ width: 1024, height: 512 }, { height: 256 })).toEqual({ width: 512, height: 256 });
+        expect(resolveResizeTarget({ width: 800, height: 800 }, { targetLongEdge: 2048 })).toEqual({ width: 2048, height: 2048 });
+    });
+    test("拒绝超长边、非法像素和空参数", () => {
+        expect(() => resolveResizeTarget({ width: 1024, height: 1024 }, { width: 8192, height: 8192 })).toThrow();
+        expect(() => resolveResizeTarget({ width: 1024, height: 1024 }, { width: 0, height: 100 })).toThrow();
+        expect(() => resolveResizeTarget({ width: 1024, height: 1024 }, {})).toThrow();
+        expect(() => resolveResizeTarget({ width: 0, height: 1024 }, { width: 800, height: 800 })).toThrow();
     });
     test("锁定比例时八个手柄在各种拖动下都保持比例与图内边界", () => {
         const box = { x: 0.1, y: 0.2, width: 0.6, height: 0.4 };
