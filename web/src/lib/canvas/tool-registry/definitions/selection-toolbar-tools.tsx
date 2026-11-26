@@ -17,6 +17,7 @@ import {
     LayoutTemplate,
     Link2,
     PanelTop,
+    Scaling,
     Workflow,
 } from "lucide-react";
 
@@ -100,6 +101,18 @@ export const selectionToolbarTools: ToolDefinition[] = [
         applicable: (ctx) => Boolean(ctx.handlers.onMergeVideos),
         disabled: (ctx) => ctx.mergingVideos || ctx.selectedVideoCount < 2 || ctx.videoMergeAspectMismatch,
         run: (ctx) => ctx.handlers.onMergeVideos?.(),
+    },
+    {
+        id: "selection-batch-resize-images",
+        toolbar: "selection",
+        category: "selection",
+        label: "批量改尺寸",
+        icon: <Scaling />,
+        defaultVisible: true,
+        defaultOrder: 146,
+        applicable: (ctx) => Boolean(ctx.handlers.onBatchResizeImages),
+        disabled: (ctx) => ctx.selectedCount < 1,
+        run: (ctx) => ctx.handlers.onBatchResizeImages?.(),
     },
     {
         id: "selection-send-to-agent",

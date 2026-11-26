@@ -138,6 +138,7 @@ import { isFrameNode } from "@/lib/canvas/canvas-frame";
 import { deriveStoryboardPipelineProgress } from "@/lib/canvas/canvas-storyboard-progress";
 import { CanvasMergeStatusToast, CanvasOperationChangeToast, CanvasUploadStatusToast } from "./canvas-project-feedback";
 import { CanvasVideoMergeOrderDialog } from "@/components/canvas/canvas-video-merge-order-dialog";
+import { CanvasBatchResizeDialog } from "@/components/canvas/canvas-batch-resize-dialog";
 import { getGenerationCount } from "@/lib/canvas/canvas-project-generation";
 import { canvasReferenceImageDimensions } from "@/lib/canvas/canvas-reference-image-size";
 import { cancelGenerationTask } from "@/services/api/task-center";
@@ -931,6 +932,10 @@ function CanvasViewportPage() {
         mergeVideosByIds,
         mergeVideoProgress,
         mergeOrderItems,
+        batchResizeNodeIds,
+        requestBatchResize,
+        cancelBatchResize,
+        confirmBatchResize,
         requestMergeOrder,
         moveMergeOrder,
         confirmMergeOrder,
@@ -3367,6 +3372,7 @@ function CanvasViewportPage() {
                                     onCreateReferenceGroup={createReferenceGroup}
                                     onBatchConnect={() => beginBatchConnectionMode(batchSourceNodeIds)}
                                     onMergeVideos={() => void mergeSelectedVideos()}
+                                    onBatchResizeImages={() => requestBatchResize(Array.from(selectedNodeIds))}
                                     onCompareImages={selectedNodeIds.size === 2 && selectionImages.length === 2 ? () => setComparedImageIds(selectionImages.map((node) => node.id)) : undefined}
                                     onSendSelectionToAgent={() => sendSelectionToAgent()}
                                 />
@@ -3375,6 +3381,7 @@ function CanvasViewportPage() {
                             {uploadStatus ? <CanvasUploadStatusToast status={uploadStatus} theme={theme} /> : null}
                             {mergeVideoProgress ? <CanvasMergeStatusToast progress={mergeVideoProgress} theme={theme} /> : null}
                             {mergeOrderItems ? <CanvasVideoMergeOrderDialog items={mergeOrderItems} onMove={moveMergeOrder} onCancel={cancelMergeOrder} onConfirm={confirmMergeOrder} /> : null}
+                            {batchResizeNodeIds ? <CanvasBatchResizeDialog count={batchResizeNodeIds.length} onCancel={cancelBatchResize} onConfirm={(params) => void confirmBatchResize(params)} /> : null}
                             {lastAgentChange ? (
                                 <CanvasOperationChangeToast
                                     change={lastAgentChange}

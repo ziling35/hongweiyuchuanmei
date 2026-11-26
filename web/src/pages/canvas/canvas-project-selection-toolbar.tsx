@@ -23,6 +23,7 @@ type CanvasProjectSelectionToolbarProps = {
     onCreateReferenceGroup: () => void;
     onBatchConnect: () => void;
     onMergeVideos?: () => void;
+    onBatchResizeImages?: () => void;
     onCompareImages?: () => void;
     onSendSelectionToAgent: () => void;
 };
@@ -41,6 +42,7 @@ export function CanvasProjectSelectionToolbar({
     onCreateReferenceGroup,
     onBatchConnect,
     onMergeVideos,
+    onBatchResizeImages,
     onCompareImages,
     onSendSelectionToAgent,
 }: CanvasProjectSelectionToolbarProps) {
@@ -55,6 +57,7 @@ export function CanvasProjectSelectionToolbar({
         onCreateReferenceGroup,
         onBatchConnect,
         onMergeVideos,
+        onBatchResizeImages,
         onCompareImages,
         onSendSelectionToAgent,
     } as Partial<ToolbarHandlers> as ToolbarHandlers;

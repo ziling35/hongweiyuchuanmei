@@ -627,27 +627,30 @@ export function useCanvasMediaTools({
 
     // 合并成片分两步：先把选中的视频交给排序面板确认顺序，再按确认的顺序拼接。
     const [mergeOrderItems, setMergeOrderItems] = useState<CanvasNodeData[] | null>(null);
-    const requestMergeOrder = useCallback((videoNodeIds: string[]) => {
-        if (mergeVideoRunningRef.current) return;
-        const requestedIds = new Set(videoNodeIds);
-        const eligible = nodesRef.current.filter((node) => requestedIds.has(node.id) && node.type === CanvasNodeType.Video && Boolean(node.metadata?.content));
-        if (eligible.length < 2) {
-            message.warning(translate("canvasPage.mediaTools.selectTwoVideos"));
-            return;
-        }
-        // 画幅不一致的视频直拼一定出坏片，先在做排序之前拦掉，避免让用户白排一遍。
-        const aspectConflict = videoAspectConflict(eligible.map((node) => videoFrameSizeFromMetadata(node.metadata)));
-        if (aspectConflict) {
-            message.warning(
-                translate("canvasPage.mediaTools.mergeAspectMismatch", {
-                    expected: `${aspectConflict.expected.width}×${aspectConflict.expected.height}`,
-                    actual: `${aspectConflict.actual.width}×${aspectConflict.actual.height}`,
-                }),
-            );
-            return;
-        }
-        setMergeOrderItems(orderNodesByIds(eligible, defaultMergeOrder(eligible)));
-    }, [message, nodesRef]);
+    const requestMergeOrder = useCallback(
+        (videoNodeIds: string[]) => {
+            if (mergeVideoRunningRef.current) return;
+            const requestedIds = new Set(videoNodeIds);
+            const eligible = nodesRef.current.filter((node) => requestedIds.has(node.id) && node.type === CanvasNodeType.Video && Boolean(node.metadata?.content));
+            if (eligible.length < 2) {
+                message.warning(translate("canvasPage.mediaTools.selectTwoVideos"));
+                return;
+            }
+            // 画幅不一致的视频直拼一定出坏片，先在做排序之前拦掉，避免让用户白排一遍。
+            const aspectConflict = videoAspectConflict(eligible.map((node) => videoFrameSizeFromMetadata(node.metadata)));
+            if (aspectConflict) {
+                message.warning(
+                    translate("canvasPage.mediaTools.mergeAspectMismatch", {
+                        expected: `${aspectConflict.expected.width}×${aspectConflict.expected.height}`,
+                        actual: `${aspectConflict.actual.width}×${aspectConflict.actual.height}`,
+                    }),
+                );
+                return;
+            }
+            setMergeOrderItems(orderNodesByIds(eligible, defaultMergeOrder(eligible)));
+        },
+        [message, nodesRef],
+    );
     const moveMergeOrder = useCallback((id: string, delta: -1 | 1) => {
         setMergeOrderItems((current) => (current ? moveMergeOrderItem(current, id, delta) : current));
     }, []);
@@ -1857,6 +1860,71 @@ export function useCanvasMediaTools({
         [message, persistMediaNodes, setConnections, setDialogNodeId, setNodes, setSelectedNodeIds],
     );
 
+    // 批量改尺寸：多选图片后按同一口径重采样，每张都生成新节点并连回原图。
+    const [batchResizeNodeIds, setBatchResizeNodeIds] = useState<string[] | null>(null);
+    const requestBatchResize = useCallback(
+        (nodeIds: string[]) => {
+            const requested = new Set(nodeIds);
+            const eligible = nodesRef.current.filter((node) => requested.has(node.id) && node.type === CanvasNodeType.Image && Boolean(node.metadata?.content));
+            if (!eligible.length) {
+                message.warning("选中的节点里没有可处理的图片");
+                return;
+            }
+            setBatchResizeNodeIds(eligible.map((node) => node.id));
+        },
+        [message, nodesRef],
+    );
+    const cancelBatchResize = useCallback(() => setBatchResizeNodeIds(null), []);
+    const confirmBatchResize = useCallback(
+        async (params: CanvasImageUpscaleParams) => {
+            const requested = new Set(batchResizeNodeIds ?? []);
+            const targets = nodesRef.current.filter((node) => requested.has(node.id) && node.type === CanvasNodeType.Image && Boolean(node.metadata?.content));
+            setBatchResizeNodeIds(null);
+            if (!targets.length) return;
+            const pairs: Array<{ parent: CanvasNodeData; child: CanvasNodeData }> = [];
+            let failed = 0;
+            for (const node of targets) {
+                let releaseSource = () => {};
+                try {
+                    const source = await resolveProcessableImageSource(node);
+                    releaseSource = source.release;
+                    const resized = await upscaleDataUrl(source.url, params);
+                    const image = await uploadImage(resized);
+                    const size = fitImageNodeSize(image.width, image.height);
+                    pairs.push({
+                        parent: node,
+                        child: {
+                            id: nanoid(),
+                            type: CanvasNodeType.Image,
+                            title: translate("canvasPage.mediaTools.titleUpscale", { title: node.title || translate("canvasPage.common.image") }),
+                            position: { x: node.position.x + node.width + 96, y: node.position.y },
+                            width: size.width,
+                            height: size.height,
+                            metadata: { ...imageMetadata(image), prompt: node.metadata?.prompt },
+                        },
+                    });
+                } catch {
+                    // 单张失败不应中断整批，最后统一汇报成功/失败数量。
+                    failed += 1;
+                } finally {
+                    releaseSource();
+                }
+            }
+            if (!pairs.length) {
+                message.error("批量改尺寸失败：没有生成任何图片");
+                return;
+            }
+            const children = pairs.map((pair) => pair.child);
+            setNodes((current) => [...current, ...children]);
+            setConnections((current) => [...current, ...pairs.map((pair) => ({ id: nanoid(), fromNodeId: pair.parent.id, toNodeId: pair.child.id }))]);
+            setSelectedNodeIds(new Set(children.map((child) => child.id)));
+            await persistMediaNodes(children);
+            const summary = params.width && params.height ? `${params.width}×${params.height}` : `长边 ${params.targetLongEdge ?? ""}px`;
+            message.success(failed > 0 ? `已按 ${summary} 生成 ${children.length} 张，${failed} 张失败` : `已按 ${summary} 生成 ${children.length} 张`);
+        },
+        [batchResizeNodeIds, message, nodesRef, persistMediaNodes, setConnections, setNodes, setSelectedNodeIds],
+    );
+
     const generateAngleNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
             if (!node.metadata?.content) return;
@@ -2280,6 +2348,10 @@ export function useCanvasMediaTools({
         openVideoFrameExtractor,
         openVideoSegmentExtractor,
         upscaleImageNode,
+        batchResizeNodeIds,
+        requestBatchResize,
+        cancelBatchResize,
+        confirmBatchResize,
         upscaleNodeId,
     };
 }

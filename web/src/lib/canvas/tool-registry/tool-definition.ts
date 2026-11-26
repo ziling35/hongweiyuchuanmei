@@ -64,6 +64,8 @@ export type ToolbarHandlers = {
     onBatchConnect: () => void;
     /** 把选中的多个视频按顺序拼成一段成片；只读分享页等不提供时入口自动隐藏。 */
     onMergeVideos?: () => void;
+    /** 把选中的多张图片批量改到同一尺寸口径；没提供时入口自动隐藏。 */
+    onBatchResizeImages?: () => void;
     onCompareImages?: () => void;
     onSendSelectionToAgent: () => void;
     // 节点悬停工具栏——节点操作（均接收当前节点）
