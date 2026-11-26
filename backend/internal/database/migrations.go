@@ -13,7 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
-const CurrentSchemaVersion int64 = 114
+// 上游 v111（redeem_batch_limits_and_capability_pools）在本仓库顺延为 v115：
+// 本地库已应用到 v114，且 v111 已被 showcase_works 占用，见迁移列表末尾的说明。
+const CurrentSchemaVersion int64 = 115
 
 const baselineSchemaChecksum = "sha256:open-ai-canvas-schema-v1-20260830"
 const schemaMigrationAppliedAtIndexChecksum = "sha256:schema-migrations-applied-at-index-v2-20260830"
@@ -426,6 +428,42 @@ var schemaMigrations = []migration{
 	{version: 114, name: "reference_image_billing_order_cost", checksum: "sha256:reference-image-billing-order-cost-v114-20261202", apply: func(tx *gorm.DB) error {
 		return tx.AutoMigrate(&model.BillingOrder{}, &model.ChannelModelPriceTier{})
 	}},
+	// 上游的 v111（redeem_batch_limits_and_capability_pools）与本仓库的 v111（showcase_works）撞号，
+	// 且本地库已应用到 v114。直接采用上游编号会与已应用迁移冲突并破坏 checksum，
+	// 因此内容与上游保持一致、版本号顺延为 v115。后续上游 v112+ 迁移同样需要顺延编号。
+	{version: 115, name: "redeem_batch_limits_and_capability_pools", checksum: "sha256:redeem-batch-limits-and-capability-pools-v115-20261125", apply: migrateRedeemBatchLimitsAndCapabilityPools},
+}
+
+func migrateRedeemBatchLimitsAndCapabilityPools(tx *gorm.DB) error {
+	for _, change := range []struct {
+		entity  any
+		columns []string
+	}{
+		{&model.RedeemBatch{}, []string{"one_per_user", "allowed_capability"}},
+		{&model.CreditAccount{}, []string{"image_available_microcredits", "image_reserved_microcredits", "video_available_microcredits", "video_reserved_microcredits"}},
+		{&model.BillingOrder{}, []string{"image_reserved_microcredits", "video_reserved_microcredits", "image_actual_microcredits", "video_actual_microcredits"}},
+	} {
+		if !tx.Migrator().HasTable(change.entity) {
+			if err := tx.AutoMigrate(change.entity); err != nil {
+				return err
+			}
+			continue
+		}
+		for _, column := range change.columns {
+			if !tx.Migrator().HasColumn(change.entity, column) {
+				if err := tx.Migrator().AddColumn(change.entity, column); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if !tx.Migrator().HasTable(&model.RedeemCode{}) {
+		return tx.AutoMigrate(&model.RedeemCode{})
+	}
+	if !tx.Migrator().HasIndex(&model.RedeemCode{}, "idx_redeem_codes_batch_status_user") {
+		return tx.Migrator().CreateIndex(&model.RedeemCode{}, "idx_redeem_codes_batch_status_user")
+	}
+	return nil
 }
 
 func migrateAPILogGenerationContent(tx *gorm.DB) error {
