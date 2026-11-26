@@ -108,21 +108,31 @@ function nativeValueSetter(target: HTMLInputElement) {
     return null;
 }
 
+// React 的变更监听挂在根容器上，而事件构造器可能来自不同 DOM 运行时。
+// 逐个运行时各派发一次（同值 setState 幂等），避免某个构造器不被识别导致 onChange 根本没触发。
+function eventConstructors(view: Window & typeof globalThis) {
+    const list = [dom.Event, view.Event, dom.InputEvent, view.InputEvent].filter((value): value is typeof Event => typeof value === "function");
+    const unique: Array<typeof Event> = [];
+    for (const ctor of list) if (!unique.includes(ctor)) unique.push(ctor);
+    return unique;
+}
+
 async function typeCustomSize(target: HTMLInputElement, value: string) {
     const view = target.ownerDocument.defaultView ?? dom;
     const setter = nativeValueSetter(target);
     await act(async () => {
         if (setter) setter.call(target, value);
         else target.value = value;
-        target.dispatchEvent(new view.Event("input", { bubbles: true }));
-        target.dispatchEvent(new view.Event("change", { bubbles: true }));
+        for (const Ctor of eventConstructors(view)) target.dispatchEvent(new Ctor("input", { bubbles: true }));
     });
 }
 
 async function clickApply(target: HTMLButtonElement) {
     const view = target.ownerDocument.defaultView ?? dom;
     await act(async () => {
-        target.dispatchEvent(new view.MouseEvent("click", { bubbles: true }));
+        // 原生 click() 不依赖任何 Event 构造器，先用它；再补一次显式事件派发。
+        target.click();
+        for (const Ctor of eventConstructors(view)) target.dispatchEvent(new Ctor("click", { bubbles: true }));
     });
 }
 
@@ -160,6 +170,22 @@ describe("自定义尺寸被归一后的提示", () => {
             if (!input) throw new Error("自定义尺寸输入框未渲染");
             await typeCustomSize(input, "1152x1152");
             expect(input.value, "受控输入没有接受键入值").toBe("1152x1152");
+        } finally {
+            await cleanup();
+        }
+    });
+
+    test("③a 点击应用后没有出现输入格式错误", async () => {
+        const { container, cleanup } = await renderPicker();
+        try {
+            const input = findCustomSizeInput(container);
+            if (!input) throw new Error("自定义尺寸输入框未渲染");
+            await typeCustomSize(input, "1152x1152");
+            const apply = findApplyButton(container);
+            if (!apply) throw new Error("应用按钮未渲染");
+            await clickApply(apply);
+            // 格式错误说明点击时组件读到的自定义值仍是空的（事件没被 React 接收）。
+            expect(container.textContent, `实际渲染文本：${container.textContent}`).not.toContain("像素 1824x1024");
         } finally {
             await cleanup();
         }
