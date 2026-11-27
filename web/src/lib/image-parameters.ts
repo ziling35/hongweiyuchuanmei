@@ -19,6 +19,8 @@ export type ImageParameter = {
     pricing?: boolean;
     binding?: string;
     encoding?: "pixels" | "ratio";
+    // 插件可显式声明自定义像素；缺省时按「未声明 values 才允许自定义」推算。
+    allowCustom?: boolean;
     models?: string[];
     enabled?: boolean;
 };
@@ -38,7 +40,8 @@ export function imageParameterAccepts(field: ImageParameter, value: unknown): va
             if (Math.abs(steps - Math.round(steps)) > 1e-8) return false;
         }
     }
-    return !field.values?.length || field.values.includes(value as ImageParameterValue);
+    // 插件显式 allowCustom 时，清单只用于给出可选项，不限制取值。
+    return field.allowCustom === true || !field.values?.length || field.values.includes(value as ImageParameterValue);
 }
 
 // 后端把插件未声明参数的能力切片序列化为 null（Go nil slice），默认参数语法
@@ -151,7 +154,7 @@ export function projectImageParameters(profile: ImageCapabilityConfig, parameter
                         : profile.size.parameter,
                   values: (size.values || []).map(String),
                   default: String(size.default ?? size.values?.[0] ?? "auto"),
-                  allowCustom: !size.values?.length,
+                  allowCustom: size.allowCustom ?? !size.values?.length,
                   presets: profile.size.presets?.filter(
                       (p) =>
                           (!size.values?.length || size.values.includes(p.ratio) || size.values.includes(p.size)) &&

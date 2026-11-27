@@ -27,6 +27,8 @@ type ImageParameter struct {
 	Pricing     bool     `json:"pricing,omitempty"`
 	Binding     string   `json:"binding,omitempty"`
 	Encoding    string   `json:"encoding,omitempty"`
+	// AllowCustom 让 size 参数在保留声明值的同时开放自定义像素；缺省时沿用「未声明 values 才允许自定义」。
+	AllowCustom *bool    `json:"allowCustom,omitempty"`
 	Models      []string `json:"models,omitempty"`
 	Enabled     *bool    `json:"enabled,omitempty"`
 }
@@ -114,7 +116,8 @@ func (p ImageParameter) Accepts(value any) bool {
 	default:
 		return false
 	}
-	if len(p.Values) == 0 {
+	// 声明清单只用于给出可选项；插件显式 allowCustom 时允许清单外的取值。
+	if len(p.Values) == 0 || (p.AllowCustom != nil && *p.AllowCustom) {
 		return true
 	}
 	for _, candidate := range p.Values {

@@ -403,3 +403,33 @@ func TestImageParametersDisabledResolutionRejectsAmbiguousPixels(t *testing.T) {
 		t.Fatal("runtime selected first preset")
 	}
 }
+
+// 插件声明 allowCustom 时，size 的声明值退化为「可选项」，而不是白名单。
+func TestProjectImageParametersHonorsDeclaredAllowCustom(t *testing.T) {
+	declared := protocol.ImageParameter{Name: "size", Label: "尺寸", Type: "string", Encoding: "pixels", Values: []any{"1024x1024", "1440x2560"}, Default: "1024x1024"}
+	withCustom := declared
+	allowed := true
+	withCustom.AllowCustom = &allowed
+
+	for name, testCase := range map[string]struct {
+		parameter protocol.ImageParameter
+		want      bool
+	}{
+		"未声明 allowCustom 时为白名单": {parameter: declared, want: false},
+		"声明 allowCustom 时开放自定义":  {parameter: withCustom, want: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			profile := &ImageCapabilityConfig{Parameters: []protocol.ImageParameter{testCase.parameter}}
+			projectImageParameters(profile)
+			if profile.Size.AllowCustom != testCase.want {
+				t.Fatalf("AllowCustom = %v，期望 %v", profile.Size.AllowCustom, testCase.want)
+			}
+			if len(profile.Size.Values) != 2 {
+				t.Fatalf("声明值应保留，实际 %v", profile.Size.Values)
+			}
+			if got := testCase.parameter.Accepts("800x800"); got != testCase.want {
+				t.Fatalf("Accepts(800x800) = %v，期望 %v", got, testCase.want)
+			}
+		})
+	}
+}

@@ -212,6 +212,10 @@ func projectImageParameters(image *ImageCapabilityConfig) {
 			}
 			image.Size.Values, image.Size.Default = values, initial
 			image.Size.AllowCustom = len(p.Values) == 0
+			// 插件显式声明 allowCustom 时覆盖推算结果，让「声明值 + 自定义」并存。
+			if p.AllowCustom != nil {
+				image.Size.AllowCustom = *p.AllowCustom
+			}
 			// 插件可用 size 参数的 step/min/max 声明像素约束（min/max 视为像素总量）。
 			if p.Step != nil {
 				image.Size.Step = int(*p.Step)
