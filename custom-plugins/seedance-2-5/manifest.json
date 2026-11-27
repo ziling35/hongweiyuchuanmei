@@ -1,0 +1,599 @@
+{
+  "apiVersion": "yingce.plugin/v2",
+  "id": "seedance-2-5",
+  "name": "Seedance 2.5（方舟兼容 / 中转）",
+  "version": "1.0.1",
+  "author": "影策",
+  "description": "火山方舟 Seedance 2.5 视频生成协议插件：POST /api/v3/contents/generations/tasks 提交，GET /api/v3/contents/generations/tasks/{id} 轮询。相比内置 volcengine-ark-seedance，补齐 omni_reference_task_type、output_format、priority、return_last_frame、frames、service_tier、tools、callback_url、execution_expires_after 等 2.5 字段，并支持扩展体透传。",
+  "permissions": [
+    "generation.run",
+    "media.read"
+  ],
+  "configuration": {
+    "fields": [
+      {
+        "name": "apiKey",
+        "type": "secret",
+        "label": "API Token / Ark API Key",
+        "required": true,
+        "description": "官方方舟填 API Key；中转平台填平台 Token。都以 Bearer 方式发送。"
+      }
+    ]
+  },
+  "contributes": {
+    "providers": [
+      {
+        "id": "seedance-2-5",
+        "label": "Seedance 2.5（方舟兼容 / 中转）",
+        "capabilities": [
+          "video"
+        ],
+        "scopes": [
+          "admin.system-channel",
+          "user.custom-channel",
+          "canvas",
+          "creation",
+          "agent"
+        ],
+        "baseUrl": "https://ark.cn-beijing.volces.com",
+        "requiresPublicMediaUrls": true,
+        "auth": {
+          "type": "bearer",
+          "field": "apiKey"
+        },
+        "parameters": [
+          {
+            "name": "model",
+            "type": "string",
+            "required": true,
+            "mapping": "model",
+            "description": "模型 ID 或 Endpoint ID，例如 doubao-seedance-2-5-260928。"
+          },
+          {
+            "name": "prompt",
+            "type": "string",
+            "required": false,
+            "mapping": "content[type=text]",
+            "description": "文本提示词。参考生视频、视频编辑/延长允许只给素材不给文本，因此不做必填校验。"
+          },
+          {
+            "name": "images",
+            "type": "media[]",
+            "required": false,
+            "mapping": "content[type=image_url]",
+            "description": "首帧、尾帧与参考图；role 原样使用，为空时按 reference_image 发送。"
+          },
+          {
+            "name": "videos",
+            "type": "media[]",
+            "required": false,
+            "mapping": "content[type=video_url]",
+            "description": "参考/待编辑/待延长视频，role 默认 reference_video。"
+          },
+          {
+            "name": "audios",
+            "type": "media[]",
+            "required": false,
+            "mapping": "content[type=audio_url]",
+            "description": "参考音频，role 默认 reference_audio。Seedance 2.5 支持仅音频输入。"
+          },
+          {
+            "name": "duration",
+            "type": "integer",
+            "required": false,
+            "mapping": "duration",
+            "description": "视频时长（秒）。大于 0 时原样下发，未配置时下发 -1 由模型自适应。"
+          },
+          {
+            "name": "aspectRatio",
+            "type": "string",
+            "required": false,
+            "mapping": "ratio",
+            "description": "画幅比例；缺省 adaptive（2.5 在首帧/首尾帧与编辑任务上只接受 adaptive）。"
+          },
+          {
+            "name": "resolution",
+            "type": "string",
+            "required": false,
+            "mapping": "resolution",
+            "description": "分辨率档位，2.5 可选 480p、720p，缺省 720p。"
+          },
+          {
+            "name": "generateAudio",
+            "type": "boolean",
+            "required": false,
+            "mapping": "generate_audio",
+            "description": "是否生成有声视频。"
+          },
+          {
+            "name": "watermark",
+            "type": "boolean",
+            "required": false,
+            "mapping": "watermark",
+            "description": "是否输出 AI 生成水印。"
+          },
+          {
+            "name": "seed",
+            "type": "integer",
+            "required": false,
+            "mapping": "seed",
+            "description": "随机种子，来自 providerOptions.seedance-2-5.seed；-1 表示随机。"
+          },
+          {
+            "name": "camera_fixed",
+            "type": "boolean",
+            "required": false,
+            "mapping": "camera_fixed",
+            "description": "是否固定机位，来自 providerOptions.seedance-2-5.camera_fixed。"
+          },
+          {
+            "name": "omni_reference_task_type",
+            "type": "string",
+            "required": false,
+            "mapping": "omni_reference_task_type",
+            "description": "auto / reference / edit / extend，来自 providerOptions.seedance-2-5.omni_reference_task_type。"
+          },
+          {
+            "name": "output_format",
+            "type": "string",
+            "required": false,
+            "mapping": "output_format",
+            "description": "mp4 / mov，来自 providerOptions.seedance-2-5.output_format。"
+          },
+          {
+            "name": "return_last_frame",
+            "type": "boolean",
+            "required": false,
+            "mapping": "return_last_frame",
+            "description": "是否返回尾帧图，来自 providerOptions.seedance-2-5.return_last_frame。"
+          },
+          {
+            "name": "priority",
+            "type": "integer",
+            "required": false,
+            "mapping": "priority",
+            "description": "排队优先级 0-9，来自 providerOptions.seedance-2-5.priority。"
+          },
+          {
+            "name": "frames",
+            "type": "integer",
+            "required": false,
+            "mapping": "frames",
+            "description": "按帧数生成（29-289，25+4n），来自 providerOptions.seedance-2-5.frames。"
+          },
+          {
+            "name": "service_tier",
+            "type": "string",
+            "required": false,
+            "mapping": "service_tier",
+            "description": "default / flex，来自 providerOptions.seedance-2-5.service_tier。"
+          },
+          {
+            "name": "tools",
+            "type": "array",
+            "required": false,
+            "mapping": "tools",
+            "description": "工具配置（如 web_search），来自 providerOptions.seedance-2-5.tools。"
+          },
+          {
+            "name": "callback_url",
+            "type": "string",
+            "required": false,
+            "mapping": "callback_url",
+            "description": "任务状态回调地址，来自 providerOptions.seedance-2-5.callback_url。"
+          },
+          {
+            "name": "execution_expires_after",
+            "type": "integer",
+            "required": false,
+            "mapping": "execution_expires_after",
+            "description": "任务超时阈值（秒，3600-259200），来自 providerOptions.seedance-2-5.execution_expires_after。"
+          },
+          {
+            "name": "providerOptions",
+            "type": "object",
+            "required": false,
+            "mapping": "extra_body",
+            "description": "扩展字段：omni_reference_task_type、output_format、priority、return_last_frame、frames、service_tier、tools、callback_url、execution_expires_after、seed、camera_fixed、ratio、duration，以及 providerOptions.seedance-2-5.body 或 .extra_body 原样合并进请求体。编辑/延长任务由插件强制 ratio=adaptive、duration=-1。"
+          }
+        ],
+        "requestBindings": [
+          {
+            "name": "omniTaskType",
+            "value": {
+              "$lower": {
+                "$coalesce": [
+                  {
+                    "$ref": "request.providerOptions.seedance-2-5.omni_reference_task_type"
+                  },
+                  ""
+                ]
+              }
+            }
+          },
+          {
+            "name": "hasVideo",
+            "value": {
+              "$gt": [
+                {
+                  "$len": {
+                    "$ref": "request.videos"
+                  }
+                },
+                0
+              ]
+            }
+          },
+          {
+            "name": "editTask",
+            "value": {
+              "$or": [
+                {
+                  "$in": [
+                    {
+                      "$ref": "bindings.omniTaskType"
+                    },
+                    [
+                      "edit",
+                      "extend"
+                    ]
+                  ]
+                },
+                {
+                  "$and": [
+                    {
+                      "$in": [
+                        {
+                          "$ref": "bindings.omniTaskType"
+                        },
+                        [
+                          "",
+                          "auto"
+                        ]
+                      ]
+                    },
+                    {
+                      "$ref": "bindings.hasVideo"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "create": {
+          "method": "POST",
+          "path": "/api/v3/contents/generations/tasks",
+          "contentType": "application/json",
+          "body": {
+            "$merge": [
+              {
+                "model": {
+                  "$ref": "request.model"
+                },
+                "content": {
+                  "$concatArrays": [
+                    {
+                      "$if": {
+                        "condition": {
+                          "$gt": [
+                            {
+                              "$len": {
+                                "$trim": {
+                                  "$coalesce": [
+                                    {
+                                      "$ref": "request.prompt"
+                                    },
+                                    ""
+                                  ]
+                                }
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        "then": [
+                          {
+                            "type": "text",
+                            "text": {
+                              "$ref": "request.prompt"
+                            }
+                          }
+                        ],
+                        "else": []
+                      }
+                    },
+                    {
+                      "$map": {
+                        "from": {
+                          "$sortByOrder": {
+                            "$ref": "request.images"
+                          }
+                        },
+                        "as": "media",
+                        "in": {
+                          "type": "image_url",
+                          "image_url": {
+                            "url": {
+                              "$ref": "media.value"
+                            }
+                          },
+                          "role": {
+                            "$coalesce": [
+                              {
+                                "$ref": "media.role"
+                              },
+                              "reference_image"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "$map": {
+                        "from": {
+                          "$sortByOrder": {
+                            "$ref": "request.videos"
+                          }
+                        },
+                        "as": "media",
+                        "in": {
+                          "type": "video_url",
+                          "video_url": {
+                            "url": {
+                              "$ref": "media.value"
+                            }
+                          },
+                          "role": {
+                            "$coalesce": [
+                              {
+                                "$ref": "media.role"
+                              },
+                              "reference_video"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "$map": {
+                        "from": {
+                          "$sortByOrder": {
+                            "$ref": "request.audios"
+                          }
+                        },
+                        "as": "media",
+                        "in": {
+                          "type": "audio_url",
+                          "audio_url": {
+                            "url": {
+                              "$ref": "media.value"
+                            }
+                          },
+                          "role": {
+                            "$coalesce": [
+                              {
+                                "$ref": "media.role"
+                              },
+                              "reference_audio"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "ratio": {
+                  "$if": {
+                    "condition": {
+                      "$ref": "bindings.editTask"
+                    },
+                    "then": "adaptive",
+                    "else": {
+                      "$coalesce": [
+                        {
+                          "$ref": "request.providerOptions.seedance-2-5.ratio"
+                        },
+                        {
+                          "$ref": "request.aspectRatio"
+                        },
+                        "adaptive"
+                      ]
+                    }
+                  }
+                },
+                "resolution": {
+                  "$coalesce": [
+                    {
+                      "$ref": "request.resolution"
+                    },
+                    "720p"
+                  ]
+                },
+                "duration": {
+                  "$if": {
+                    "condition": {
+                      "$ref": "bindings.editTask"
+                    },
+                    "then": -1,
+                    "else": {
+                      "$coalesce": [
+                        {
+                          "$ref": "request.providerOptions.seedance-2-5.duration"
+                        },
+                        {
+                          "$if": {
+                            "condition": {
+                              "$gt": [
+                                {
+                                  "$ref": "request.duration"
+                                },
+                                0
+                              ]
+                            },
+                            "then": {
+                              "$ref": "request.duration"
+                            },
+                            "else": -1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "generate_audio": {
+                  "$ref": "request.generateAudio"
+                },
+                "watermark": {
+                  "$ref": "request.watermark"
+                },
+                "seed": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.seed"
+                  }
+                },
+                "camera_fixed": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.camera_fixed"
+                  }
+                },
+                "omni_reference_task_type": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.omni_reference_task_type"
+                  }
+                },
+                "output_format": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.output_format"
+                  }
+                },
+                "return_last_frame": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.return_last_frame"
+                  }
+                },
+                "priority": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.priority"
+                  }
+                },
+                "frames": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.frames"
+                  }
+                },
+                "service_tier": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.service_tier"
+                  }
+                },
+                "tools": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.tools"
+                  }
+                },
+                "callback_url": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.callback_url"
+                  }
+                },
+                "execution_expires_after": {
+                  "$omitEmpty": {
+                    "$ref": "request.providerOptions.seedance-2-5.execution_expires_after"
+                  }
+                }
+              },
+              {
+                "$coalesce": [
+                  {
+                    "$ref": "request.providerOptions.seedance-2-5.body"
+                  },
+                  {
+                    "$ref": "request.providerOptions.seedance-2-5.extra_body"
+                  },
+                  {}
+                ]
+              }
+            ]
+          }
+        },
+        "poll": {
+          "method": "GET",
+          "path": "/api/v3/contents/generations/tasks/{{taskId}}"
+        },
+        "response": {
+          "taskId": {
+            "$coalesce": [
+              {
+                "$ref": "response.id"
+              },
+              {
+                "$ref": "response.task_id"
+              },
+              {
+                "$ref": "response.data.id"
+              },
+              {
+                "$ref": "taskId"
+              }
+            ]
+          },
+          "status": {
+            "$coalesce": [
+              {
+                "$ref": "response.status"
+              },
+              {
+                "$ref": "response.data.status"
+              },
+              "pending"
+            ]
+          },
+          "message": {
+            "$coalesce": [
+              {
+                "$ref": "response.error.message"
+              },
+              {
+                "$ref": "response.message"
+              },
+              {
+                "$ref": "response.fail_reason"
+              }
+            ]
+          },
+          "videos": {
+            "$coalesce": [
+              {
+                "$ref": "response.content.video_url"
+              },
+              {
+                "$ref": "response.video_url"
+              },
+              {
+                "$ref": "response.output.video_url"
+              },
+              {
+                "$ref": "response.data.video_url"
+              }
+            ]
+          },
+          "usage": {
+            "$ref": "response.usage"
+          },
+          "errorPaths": [
+            "error.code",
+            "ResponseMetadata.Error.Code"
+          ],
+          "messagePaths": [
+            "error.message",
+            "ResponseMetadata.Error.Message"
+          ],
+          "resultKind": "video",
+          "resultEphemeral": true
+        }
+      }
+    ]
+  },
+  "documentation": "# Seedance 2.5（方舟兼容 / 中转）\n\n火山方舟 Seedance 2.5 视频生成协议，同时适配以方舟线格式暴露的第三方中转（例如 `https://tp-api.chinadatapay.com:8000`）。\n\n## 覆盖的接口\n\n- 提交：`POST /api/v3/contents/generations/tasks`\n- 轮询：`GET /api/v3/contents/generations/tasks/{id}`\n- 鉴权：`Authorization: Bearer <apiKey>`\n- 请求体：`model`、`content[]`、`ratio`、`resolution`、`duration`、`generate_audio`、`watermark`，以及 2.5 新增的 `omni_reference_task_type`、`output_format`、`priority`、`return_last_frame`、`frames`、`service_tier`、`tools`、`callback_url`、`execution_expires_after`\n- `content[]`：\n  - 文本 `{\"type\":\"text\",\"text\":\"...\"}`\n  - 图片 `{\"type\":\"image_url\",\"image_url\":{\"url\":\"...\"},\"role\":\"first_frame|last_frame|reference_image\"}`\n  - 视频 `{\"type\":\"video_url\",\"video_url\":{\"url\":\"...\"},\"role\":\"reference_video\"}`\n  - 音频 `{\"type\":\"audio_url\",\"audio_url\":{\"url\":\"...\"},\"role\":\"reference_audio\"}`\n- 创建响应：`{\"id\":\"cgt-xxx\"}`；轮询响应：`{\"status\":\"succeeded\",\"content\":{\"video_url\":\"...\"},\"usage\":{...}}`\n\n## 与内置 volcengine-ark-seedance 的差异\n\n| 点 | 内置插件 | 本插件 |\n| --- | --- | --- |\n| 2.5 专属字段 | 无 | `omni_reference_task_type`、`output_format`、`priority`、`return_last_frame`、`frames`、`service_tier`、`tools`、`callback_url`、`execution_expires_after` |\n| `duration` 缺省 | 5 | `-1`（2.5 的“模型自适应”默认值） |\n| `ratio` 缺省 | 16:9 | `adaptive`（2.5 在首帧/编辑任务上只接受 adaptive） |\n| 扩展体透传 | 无 | `providerOptions.seedance-2-5.body` / `.extra_body` 原样合并 |\n| 文本必填 | 校验非空 | 允许只传素材（参考生视频、编辑/延长允许无文本） |\n\n## 编辑/延长任务的 ratio 与 duration（v1.0.1）\n\n上游判定为视频编辑或延长后只接受 `ratio: \"adaptive\"` 与 `duration: -1`，否则返回 “`ratio` must be `adaptive` / `duration` must be -1”。本插件在下发前自动归一：\n\n- `omni_reference_task_type` 为 `edit` / `extend` → `adaptive` + `-1`。\n- `omni_reference_task_type` 未设置或为 `auto` 且请求带输入视频 → `adaptive` + `-1`（上游同样把这类请求判成编辑）。\n- 想按参考视频生成并保留自定义比例/时长 → 把 `omni_reference_task_type` 显式设为 `reference`。\n- 非编辑任务仍按 `duration`（大于 0）与 `ratio`（缺省 `adaptive`）下发，可用 `providerOptions.seedance-2-5.ratio` / `.duration` 覆盖。\n\n## 在影策里导入\n\n1. 后台 → 插件管理 → 上传 `seedance-2-5.yingce-plugin`。\n2. 后台 → 设置 → 存储服务 →「服务器访问地址」填公网根地址（本插件要求公网素材 URL）。\n3. 后台 → 渠道管理 → 新建渠道，接口选「Seedance 2.5（方舟兼容 / 中转）」：\n   - 官方方舟：Base URL `https://ark.cn-beijing.volces.com`，Key 填 Ark API Key\n   - 中转平台：Base URL `https://tp-api.chinadatapay.com:8000`，Key 填平台 Token\n4. 渠道下加模型：上游模型名照抄（如 `doubao-seedance-2-5-260928`），能力选视频，配置时长、比例、分辨率档位。\n5. 可选参数放模型能力的 `providerOptions.seedance-2-5.*`，例如 `omni_reference_task_type: \"reference\"`、`output_format: \"mov\"`。\n\n## 本地打包\n\n```bash\nnode plugin-packages/embed-documentation.mjs seedance-2-5\ncd plugin-packages && powershell -File package-selected.ps1 seedance-2-5\n```\n\n---\n\n# Seedance 2.5（方舟兼容 / 中转）接口字段\n\n## 协议身份\n\n- 插件 ID：`seedance-2-5`。\n- Provider ID：`seedance-2-5`。\n- 能力：`video`。\n- 默认 Base URL：`https://ark.cn-beijing.volces.com`（官方）；中转平台在渠道里改为平台根地址，例如 `https://tp-api.chinadatapay.com:8000`。\n- 鉴权：`bearer`，请求头 `Authorization: Bearer <apiKey>`。\n- 创建：`POST /api/v3/contents/generations/tasks`。\n- 查询：`GET /api/v3/contents/generations/tasks/{{taskId}}`。\n- 关键声明：`requiresPublicMediaUrls: true`、`resultEphemeral: true`。\n\n## 基站 URL 拼接\n\n插件声明的是绝对路径 `/api/v3/...`。宿主按 `ChannelAPIURL` 规则拼接：Base URL 只写主机（含端口）时，路径原样接上；Base URL 里若带 `/api/v3` 则不会重复。仓库测试 `TestChannelAPIURLNormalizesConfiguredVersionPrefix` 的 `path carries ark v3` 用例覆盖了这个形态。\n\n## 统一字段映射\n\n| 统一字段 | 类型 | 必填 | 上游映射 | 说明 |\n| --- | --- | --- | --- | --- |\n| `model` | string | 是 | `model` | 模型 ID 或 Endpoint ID。 |\n| `prompt` | string | 否 | `content[type=text]` | 为空时不下发文本块（参考生视频/编辑/延长允许无文本）。 |\n| `images` | media[] | 否 | `content[type=image_url]` | `role` 原样使用，缺省 `reference_image`。 |\n| `videos` | media[] | 否 | `content[type=video_url]` | `role` 缺省 `reference_video`。 |\n| `audios` | media[] | 否 | `content[type=audio_url]` | `role` 缺省 `reference_audio`。 |\n| `duration` | integer | 否 | `duration` | 编辑/延长任务固定 `-1`；其他任务大于 0 原样下发，否则 `-1`（模型自适应）。 |\n| `aspectRatio` | string | 否 | `ratio` | 编辑/延长任务固定 `adaptive`；其他任务取 `aspectRatio`，缺省 `adaptive`。 |\n| `resolution` | string | 否 | `resolution` | 缺省 `720p`。 |\n| `generateAudio` | boolean | 否 | `generate_audio` | 是否有声。 |\n| `watermark` | boolean | 否 | `watermark` | 是否水印。 |\n| `seed` | integer | 否 | `seed` | 来自 `providerOptions.seedance-2-5.seed`。 |\n| `camera_fixed` | boolean | 否 | `camera_fixed` | 来自 `providerOptions.seedance-2-5.camera_fixed`。 |\n| `omni_reference_task_type` | string | 否 | `omni_reference_task_type` | `auto`/`reference`/`edit`/`extend`。 |\n| `output_format` | string | 否 | `output_format` | `mp4`/`mov`。 |\n| `return_last_frame` | boolean | 否 | `return_last_frame` | 是否返回尾帧。 |\n| `priority` | integer | 否 | `priority` | 0-9 排队优先级。 |\n| `frames` | integer | 否 | `frames` | 29-289，`25+4n`。 |\n| `service_tier` | string | 否 | `service_tier` | `default`/`flex`。 |\n| `tools` | array | 否 | `tools` | 例如 `[{\"type\":\"web_search\"}]`。 |\n| `callback_url` | string | 否 | `callback_url` | 状态回调地址。 |\n| `execution_expires_after` | integer | 否 | `execution_expires_after` | 3600-259200 秒。 |\n| `providerOptions` | object | 否 | `extra_body` | `providerOptions.seedance-2-5.body` 或 `.extra_body` 原样合并；`.ratio` / `.duration` 覆盖非编辑任务的画面比例与时长。 |\n\n\n## 编辑/延长任务归一（ratio、duration）\n\n上游按 prompt 与素材自行判定任务类型；判定为视频编辑或延长后，`ratio` 必须是 `adaptive`、`duration` 必须是 `-1`，输出比例与时长跟随被编辑的输入视频（该视频需 4–30 秒），否则会返回 “`ratio` must be `adaptive` / `duration` must be -1”。\n\n插件在下发前按下列规则归一，避免这类必然后失败的请求：\n\n| 判定条件 | `ratio` | `duration` |\n| --- | --- | --- |\n| `omni_reference_task_type` = `edit` / `extend` | `adaptive` | `-1` |\n| `omni_reference_task_type` 未设置或为 `auto`，且带输入视频 | `adaptive` | `-1` |\n| 显式 `omni_reference_task_type` = `reference` | `providerOptions.seedance-2-5.ratio` → `aspectRatio` → `adaptive` | `providerOptions.seedance-2-5.duration` → `duration`（>0）→ `-1` |\n| 不带输入视频 | 同上 | 同上 |\n\n要按参考视频生成并保留自定义比例/时长，请把 `omni_reference_task_type` 显式设为 `reference`。\n\n## 响应映射逐字段清单\n\n| 映射位置 | 值或转换表达式 |\n| --- | --- |\n| `response.taskId` | `id`、`task_id`、`data.id`、`taskId` |\n| `response.status` | `status`、`data.status`，缺省 `pending` |\n| `response.message` | `error.message`、`message`、`fail_reason` |\n| `response.videos` | `content.video_url`、`video_url`、`output.video_url`、`data.video_url` |\n| `response.usage` | `usage`（含 `completion_tokens`、`tool_usage`） |\n| `response.errorPaths` | `error.code`、`ResponseMetadata.Error.Code` |\n| `response.messagePaths` | `error.message`、`ResponseMetadata.Error.Message` |\n| `response.resultKind` | `video` |\n| `response.resultEphemeral` | `true` |\n\n## 状态词表\n\n宿主统一按 `pending` / `running` / `succeeded` / `failed` 归一：\n\n- 排队/运行：`queued`、`running`、`processing`、`in_progress`\n- 成功：`succeeded`、`success`、`completed`\n- 失败：`failed`、`error`；`expired` 也按失败处理\n\n## 兼容边界\n\n- 参考素材必须是上游可直接抓取的公网 URL（插件声明 `requiresPublicMediaUrls`）；未配置「服务器访问地址」/`CANVAS_PUBLIC_BASE_URL` 时会明确报错，不会静默回退 base64。\n- 首帧/首尾帧、全模态参考、视频编辑/延长是互斥场景，`role` 与 `omni_reference_task_type` 要按任务类型选，混用会由上游异步报错；编辑/延长的 `ratio` 与 `duration` 由插件强制归一，不需要手工改画幅与时长。\n- 成品地址按临时地址处理，由宿主立即下载并持久化。\n- 素材库（`Action=CreateAsset` 等 `POST /v1/api/assets`）不属于生成协议，本插件不覆盖。\n\n<!-- YINGCE_MANIFEST_CONTRACT_START -->\n## Manifest 完整接口定义\n\n以下 JSON 与插件包内实际 `manifest.json` 逐字段一致，覆盖插件身份、权限、配置、鉴权、参数、校验、创建、Agent、查询、取消、结果下载、响应和 Agent 响应映射。`documentation` 字段的值就是当前完整文档；为避免文档在自身内部无限递归，JSON 中仅用等义占位文本表示正文。\n\n```json\n{\n  \"apiVersion\": \"yingce.plugin/v2\",\n  \"id\": \"seedance-2-5\",\n  \"name\": \"Seedance 2.5（方舟兼容 / 中转）\",\n  \"version\": \"1.0.1\",\n  \"author\": \"影策\",\n  \"description\": \"火山方舟 Seedance 2.5 视频生成协议插件：POST /api/v3/contents/generations/tasks 提交，GET /api/v3/contents/generations/tasks/{id} 轮询。相比内置 volcengine-ark-seedance，补齐 omni_reference_task_type、output_format、priority、return_last_frame、frames、service_tier、tools、callback_url、execution_expires_after 等 2.5 字段，并支持扩展体透传。\",\n  \"permissions\": [\n    \"generation.run\",\n    \"media.read\"\n  ],\n  \"configuration\": {\n    \"fields\": [\n      {\n        \"name\": \"apiKey\",\n        \"type\": \"secret\",\n        \"label\": \"API Token / Ark API Key\",\n        \"required\": true,\n        \"description\": \"官方方舟填 API Key；中转平台填平台 Token。都以 Bearer 方式发送。\"\n      }\n    ]\n  },\n  \"contributes\": {\n    \"providers\": [\n      {\n        \"id\": \"seedance-2-5\",\n        \"label\": \"Seedance 2.5（方舟兼容 / 中转）\",\n        \"capabilities\": [\n          \"video\"\n        ],\n        \"scopes\": [\n          \"admin.system-channel\",\n          \"user.custom-channel\",\n          \"canvas\",\n          \"creation\",\n          \"agent\"\n        ],\n        \"baseUrl\": \"https://ark.cn-beijing.volces.com\",\n        \"requiresPublicMediaUrls\": true,\n        \"auth\": {\n          \"type\": \"bearer\",\n          \"field\": \"apiKey\"\n        },\n        \"parameters\": [\n          {\n            \"name\": \"model\",\n            \"type\": \"string\",\n            \"required\": true,\n            \"mapping\": \"model\",\n            \"description\": \"模型 ID 或 Endpoint ID，例如 doubao-seedance-2-5-260928。\"\n          },\n          {\n            \"name\": \"prompt\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"content[type=text]\",\n            \"description\": \"文本提示词。参考生视频、视频编辑/延长允许只给素材不给文本，因此不做必填校验。\"\n          },\n          {\n            \"name\": \"images\",\n            \"type\": \"media[]\",\n            \"required\": false,\n            \"mapping\": \"content[type=image_url]\",\n            \"description\": \"首帧、尾帧与参考图；role 原样使用，为空时按 reference_image 发送。\"\n          },\n          {\n            \"name\": \"videos\",\n            \"type\": \"media[]\",\n            \"required\": false,\n            \"mapping\": \"content[type=video_url]\",\n            \"description\": \"参考/待编辑/待延长视频，role 默认 reference_video。\"\n          },\n          {\n            \"name\": \"audios\",\n            \"type\": \"media[]\",\n            \"required\": false,\n            \"mapping\": \"content[type=audio_url]\",\n            \"description\": \"参考音频，role 默认 reference_audio。Seedance 2.5 支持仅音频输入。\"\n          },\n          {\n            \"name\": \"duration\",\n            \"type\": \"integer\",\n            \"required\": false,\n            \"mapping\": \"duration\",\n            \"description\": \"视频时长（秒）。大于 0 时原样下发，未配置时下发 -1 由模型自适应。\"\n          },\n          {\n            \"name\": \"aspectRatio\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"ratio\",\n            \"description\": \"画幅比例；缺省 adaptive（2.5 在首帧/首尾帧与编辑任务上只接受 adaptive）。\"\n          },\n          {\n            \"name\": \"resolution\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"resolution\",\n            \"description\": \"分辨率档位，2.5 可选 480p、720p，缺省 720p。\"\n          },\n          {\n            \"name\": \"generateAudio\",\n            \"type\": \"boolean\",\n            \"required\": false,\n            \"mapping\": \"generate_audio\",\n            \"description\": \"是否生成有声视频。\"\n          },\n          {\n            \"name\": \"watermark\",\n            \"type\": \"boolean\",\n            \"required\": false,\n            \"mapping\": \"watermark\",\n            \"description\": \"是否输出 AI 生成水印。\"\n          },\n          {\n            \"name\": \"seed\",\n            \"type\": \"integer\",\n            \"required\": false,\n            \"mapping\": \"seed\",\n            \"description\": \"随机种子，来自 providerOptions.seedance-2-5.seed；-1 表示随机。\"\n          },\n          {\n            \"name\": \"camera_fixed\",\n            \"type\": \"boolean\",\n            \"required\": false,\n            \"mapping\": \"camera_fixed\",\n            \"description\": \"是否固定机位，来自 providerOptions.seedance-2-5.camera_fixed。\"\n          },\n          {\n            \"name\": \"omni_reference_task_type\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"omni_reference_task_type\",\n            \"description\": \"auto / reference / edit / extend，来自 providerOptions.seedance-2-5.omni_reference_task_type。\"\n          },\n          {\n            \"name\": \"output_format\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"output_format\",\n            \"description\": \"mp4 / mov，来自 providerOptions.seedance-2-5.output_format。\"\n          },\n          {\n            \"name\": \"return_last_frame\",\n            \"type\": \"boolean\",\n            \"required\": false,\n            \"mapping\": \"return_last_frame\",\n            \"description\": \"是否返回尾帧图，来自 providerOptions.seedance-2-5.return_last_frame。\"\n          },\n          {\n            \"name\": \"priority\",\n            \"type\": \"integer\",\n            \"required\": false,\n            \"mapping\": \"priority\",\n            \"description\": \"排队优先级 0-9，来自 providerOptions.seedance-2-5.priority。\"\n          },\n          {\n            \"name\": \"frames\",\n            \"type\": \"integer\",\n            \"required\": false,\n            \"mapping\": \"frames\",\n            \"description\": \"按帧数生成（29-289，25+4n），来自 providerOptions.seedance-2-5.frames。\"\n          },\n          {\n            \"name\": \"service_tier\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"service_tier\",\n            \"description\": \"default / flex，来自 providerOptions.seedance-2-5.service_tier。\"\n          },\n          {\n            \"name\": \"tools\",\n            \"type\": \"array\",\n            \"required\": false,\n            \"mapping\": \"tools\",\n            \"description\": \"工具配置（如 web_search），来自 providerOptions.seedance-2-5.tools。\"\n          },\n          {\n            \"name\": \"callback_url\",\n            \"type\": \"string\",\n            \"required\": false,\n            \"mapping\": \"callback_url\",\n            \"description\": \"任务状态回调地址，来自 providerOptions.seedance-2-5.callback_url。\"\n          },\n          {\n            \"name\": \"execution_expires_after\",\n            \"type\": \"integer\",\n            \"required\": false,\n            \"mapping\": \"execution_expires_after\",\n            \"description\": \"任务超时阈值（秒，3600-259200），来自 providerOptions.seedance-2-5.execution_expires_after。\"\n          },\n          {\n            \"name\": \"providerOptions\",\n            \"type\": \"object\",\n            \"required\": false,\n            \"mapping\": \"extra_body\",\n            \"description\": \"扩展字段：omni_reference_task_type、output_format、priority、return_last_frame、frames、service_tier、tools、callback_url、execution_expires_after、seed、camera_fixed、ratio、duration，以及 providerOptions.seedance-2-5.body 或 .extra_body 原样合并进请求体。编辑/延长任务由插件强制 ratio=adaptive、duration=-1。\"\n          }\n        ],\n        \"requestBindings\": [\n          {\n            \"name\": \"omniTaskType\",\n            \"value\": {\n              \"$lower\": {\n                \"$coalesce\": [\n                  {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.omni_reference_task_type\"\n                  },\n                  \"\"\n                ]\n              }\n            }\n          },\n          {\n            \"name\": \"hasVideo\",\n            \"value\": {\n              \"$gt\": [\n                {\n                  \"$len\": {\n                    \"$ref\": \"request.videos\"\n                  }\n                },\n                0\n              ]\n            }\n          },\n          {\n            \"name\": \"editTask\",\n            \"value\": {\n              \"$or\": [\n                {\n                  \"$in\": [\n                    {\n                      \"$ref\": \"bindings.omniTaskType\"\n                    },\n                    [\n                      \"edit\",\n                      \"extend\"\n                    ]\n                  ]\n                },\n                {\n                  \"$and\": [\n                    {\n                      \"$in\": [\n                        {\n                          \"$ref\": \"bindings.omniTaskType\"\n                        },\n                        [\n                          \"\",\n                          \"auto\"\n                        ]\n                      ]\n                    },\n                    {\n                      \"$ref\": \"bindings.hasVideo\"\n                    }\n                  ]\n                }\n              ]\n            }\n          }\n        ],\n        \"create\": {\n          \"method\": \"POST\",\n          \"path\": \"/api/v3/contents/generations/tasks\",\n          \"contentType\": \"application/json\",\n          \"body\": {\n            \"$merge\": [\n              {\n                \"model\": {\n                  \"$ref\": \"request.model\"\n                },\n                \"content\": {\n                  \"$concatArrays\": [\n                    {\n                      \"$if\": {\n                        \"condition\": {\n                          \"$gt\": [\n                            {\n                              \"$len\": {\n                                \"$trim\": {\n                                  \"$coalesce\": [\n                                    {\n                                      \"$ref\": \"request.prompt\"\n                                    },\n                                    \"\"\n                                  ]\n                                }\n                              }\n                            },\n                            0\n                          ]\n                        },\n                        \"then\": [\n                          {\n                            \"type\": \"text\",\n                            \"text\": {\n                              \"$ref\": \"request.prompt\"\n                            }\n                          }\n                        ],\n                        \"else\": []\n                      }\n                    },\n                    {\n                      \"$map\": {\n                        \"from\": {\n                          \"$sortByOrder\": {\n                            \"$ref\": \"request.images\"\n                          }\n                        },\n                        \"as\": \"media\",\n                        \"in\": {\n                          \"type\": \"image_url\",\n                          \"image_url\": {\n                            \"url\": {\n                              \"$ref\": \"media.value\"\n                            }\n                          },\n                          \"role\": {\n                            \"$coalesce\": [\n                              {\n                                \"$ref\": \"media.role\"\n                              },\n                              \"reference_image\"\n                            ]\n                          }\n                        }\n                      }\n                    },\n                    {\n                      \"$map\": {\n                        \"from\": {\n                          \"$sortByOrder\": {\n                            \"$ref\": \"request.videos\"\n                          }\n                        },\n                        \"as\": \"media\",\n                        \"in\": {\n                          \"type\": \"video_url\",\n                          \"video_url\": {\n                            \"url\": {\n                              \"$ref\": \"media.value\"\n                            }\n                          },\n                          \"role\": {\n                            \"$coalesce\": [\n                              {\n                                \"$ref\": \"media.role\"\n                              },\n                              \"reference_video\"\n                            ]\n                          }\n                        }\n                      }\n                    },\n                    {\n                      \"$map\": {\n                        \"from\": {\n                          \"$sortByOrder\": {\n                            \"$ref\": \"request.audios\"\n                          }\n                        },\n                        \"as\": \"media\",\n                        \"in\": {\n                          \"type\": \"audio_url\",\n                          \"audio_url\": {\n                            \"url\": {\n                              \"$ref\": \"media.value\"\n                            }\n                          },\n                          \"role\": {\n                            \"$coalesce\": [\n                              {\n                                \"$ref\": \"media.role\"\n                              },\n                              \"reference_audio\"\n                            ]\n                          }\n                        }\n                      }\n                    }\n                  ]\n                },\n                \"ratio\": {\n                  \"$if\": {\n                    \"condition\": {\n                      \"$ref\": \"bindings.editTask\"\n                    },\n                    \"then\": \"adaptive\",\n                    \"else\": {\n                      \"$coalesce\": [\n                        {\n                          \"$ref\": \"request.providerOptions.seedance-2-5.ratio\"\n                        },\n                        {\n                          \"$ref\": \"request.aspectRatio\"\n                        },\n                        \"adaptive\"\n                      ]\n                    }\n                  }\n                },\n                \"resolution\": {\n                  \"$coalesce\": [\n                    {\n                      \"$ref\": \"request.resolution\"\n                    },\n                    \"720p\"\n                  ]\n                },\n                \"duration\": {\n                  \"$if\": {\n                    \"condition\": {\n                      \"$ref\": \"bindings.editTask\"\n                    },\n                    \"then\": -1,\n                    \"else\": {\n                      \"$coalesce\": [\n                        {\n                          \"$ref\": \"request.providerOptions.seedance-2-5.duration\"\n                        },\n                        {\n                          \"$if\": {\n                            \"condition\": {\n                              \"$gt\": [\n                                {\n                                  \"$ref\": \"request.duration\"\n                                },\n                                0\n                              ]\n                            },\n                            \"then\": {\n                              \"$ref\": \"request.duration\"\n                            },\n                            \"else\": -1\n                          }\n                        }\n                      ]\n                    }\n                  }\n                },\n                \"generate_audio\": {\n                  \"$ref\": \"request.generateAudio\"\n                },\n                \"watermark\": {\n                  \"$ref\": \"request.watermark\"\n                },\n                \"seed\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.seed\"\n                  }\n                },\n                \"camera_fixed\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.camera_fixed\"\n                  }\n                },\n                \"omni_reference_task_type\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.omni_reference_task_type\"\n                  }\n                },\n                \"output_format\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.output_format\"\n                  }\n                },\n                \"return_last_frame\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.return_last_frame\"\n                  }\n                },\n                \"priority\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.priority\"\n                  }\n                },\n                \"frames\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.frames\"\n                  }\n                },\n                \"service_tier\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.service_tier\"\n                  }\n                },\n                \"tools\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.tools\"\n                  }\n                },\n                \"callback_url\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.callback_url\"\n                  }\n                },\n                \"execution_expires_after\": {\n                  \"$omitEmpty\": {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.execution_expires_after\"\n                  }\n                }\n              },\n              {\n                \"$coalesce\": [\n                  {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.body\"\n                  },\n                  {\n                    \"$ref\": \"request.providerOptions.seedance-2-5.extra_body\"\n                  },\n                  {}\n                ]\n              }\n            ]\n          }\n        },\n        \"poll\": {\n          \"method\": \"GET\",\n          \"path\": \"/api/v3/contents/generations/tasks/{{taskId}}\"\n        },\n        \"response\": {\n          \"taskId\": {\n            \"$coalesce\": [\n              {\n                \"$ref\": \"response.id\"\n              },\n              {\n                \"$ref\": \"response.task_id\"\n              },\n              {\n                \"$ref\": \"response.data.id\"\n              },\n              {\n                \"$ref\": \"taskId\"\n              }\n            ]\n          },\n          \"status\": {\n            \"$coalesce\": [\n              {\n                \"$ref\": \"response.status\"\n              },\n              {\n                \"$ref\": \"response.data.status\"\n              },\n              \"pending\"\n            ]\n          },\n          \"message\": {\n            \"$coalesce\": [\n              {\n                \"$ref\": \"response.error.message\"\n              },\n              {\n                \"$ref\": \"response.message\"\n              },\n              {\n                \"$ref\": \"response.fail_reason\"\n              }\n            ]\n          },\n          \"videos\": {\n            \"$coalesce\": [\n              {\n                \"$ref\": \"response.content.video_url\"\n              },\n              {\n                \"$ref\": \"response.video_url\"\n              },\n              {\n                \"$ref\": \"response.output.video_url\"\n              },\n              {\n                \"$ref\": \"response.data.video_url\"\n              }\n            ]\n          },\n          \"usage\": {\n            \"$ref\": \"response.usage\"\n          },\n          \"errorPaths\": [\n            \"error.code\",\n            \"ResponseMetadata.Error.Code\"\n          ],\n          \"messagePaths\": [\n            \"error.message\",\n            \"ResponseMetadata.Error.Message\"\n          ],\n          \"resultKind\": \"video\",\n          \"resultEphemeral\": true\n        }\n      }\n    ]\n  },\n  \"documentation\": \"<当前插件的完整 documentation，由 README.md 与 docs/interface.md 拼接而成；为避免 JSON 递归，此处不重复展开正文。>\"\n}\n```\n<!-- YINGCE_MANIFEST_CONTRACT_END -->\n"
+}
