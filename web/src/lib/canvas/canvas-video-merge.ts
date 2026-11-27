@@ -5,12 +5,35 @@ import { fetchFile } from "@ffmpeg/util";
 
 import { getMediaBlob } from "@/services/file-storage";
 import { buildMergeArgs, buildRecordingTranscodeArgs, resolveMergeTimeout, resolveRecordingTranscodeTimeout, type MergeVideoSource } from "./canvas-video-merge-args";
+import { mergeReadProgress } from "./canvas-video-merge-progress";
 
 export type MergeVideoInput = { id: string; url?: string; storageKey?: string; width?: number; height?: number; durationMs?: number; hasAudio?: boolean };
-export type MergeVideoProgress = { phase: "loading" | "reading" | "encoding"; progress: number };
+export type MergeVideoProgress = { phase: "loading" | "reading" | "encoding"; progress: number; indeterminate?: boolean };
 
 const FFMPEG_IDLE_MS = 30_000;
+// 首次加载要下载并实例化约 30MB 的 ffmpeg-core；没有任何反馈地久等会被当成卡死。
+const FFMPEG_LOAD_TIMEOUT_MS = 120_000;
 const FFMPEG_LOAD_ERROR = "浏览器视频转码组件（FFmpeg.wasm）加载失败，请刷新页面后重试；自部署时确认前端 /assets 下的 ffmpeg-core 文件能访问（这一步在浏览器执行，与服务器是否安装 FFmpeg 无关）";
+const FFMPEG_LOAD_TIMEOUT_MARKER = "ffmpeg-load-timeout";
+const FFMPEG_LOAD_TIMEOUT_ERROR = "视频转码组件加载超时（首次需要下载约 30MB 的 ffmpeg-core）。请检查网络后刷新页面重试";
+
+async function fetchVideoBlob(url: string, onBytes: (received: number, total: number) => void): Promise<Blob> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`视频资源请求失败（${response.status}）`);
+    const total = Number(response.headers.get("content-length") ?? 0);
+    if (!response.body || !Number.isFinite(total) || total <= 0) return response.blob();
+    const reader = response.body.getReader();
+    const chunks: BlobPart[] = [];
+    let received = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as BlobPart);
+        received += value.byteLength;
+        onBytes(received, total);
+    }
+    return new Blob(chunks, { type: response.headers.get("content-type") ?? "video/mp4" });
+}
 
 let ffmpegInstance: FFmpeg | null = null;
 let queueTail: Promise<void> = Promise.resolve();
@@ -23,12 +46,26 @@ export async function loadFFmpeg(onProgress?: (progress: MergeVideoProgress) => 
     if (ffmpegInstance) return ffmpegInstance;
     const ffmpeg = new FFmpeg();
     try {
-        onProgress?.({ phase: "loading", progress: 0 });
-        await ffmpeg.load({ coreURL: ffmpegCoreURL, wasmURL: ffmpegWasmURL });
+        onProgress?.({ phase: "loading", progress: 0, indeterminate: true });
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            await Promise.race([
+                ffmpeg.load({ coreURL: ffmpegCoreURL, wasmURL: ffmpegWasmURL }),
+                new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(FFMPEG_LOAD_TIMEOUT_MARKER)), FFMPEG_LOAD_TIMEOUT_MS);
+                }),
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
         ffmpegInstance = ffmpeg;
         return ffmpeg;
     } catch (cause) {
         ffmpeg.terminate();
+        // 超时和资源缺失要分开报：前者是等待，后者是部署缺文件。
+        if (cause instanceof Error && cause.message === FFMPEG_LOAD_TIMEOUT_MARKER) {
+            throw new Error(FFMPEG_LOAD_TIMEOUT_ERROR, { cause });
+        }
         throw new Error(FFMPEG_LOAD_ERROR, { cause });
     }
 }
@@ -166,20 +203,21 @@ export async function mergeVideos(inputs: MergeVideoInput[], onProgress?: (progr
             for (let index = 0; index < inputs.length; index += 1) {
                 const input = inputs[index];
                 const storedBlob = input.storageKey ? await getMediaBlob(input.storageKey) : null;
+                // 远程视频先下载再写入 wasm 文件系统，这一段最久，按字节回报进度。
                 const remoteBlob =
                     !storedBlob && input.url
-                        ? await fetch(input.url).then((response) => {
-                              if (!response.ok) throw new Error(`视频资源请求失败（${response.status}）`);
-                              return response.blob();
+                        ? await fetchVideoBlob(input.url, (received, total) => {
+                              onProgress?.({ phase: "reading", progress: mergeReadProgress(index, inputs.length, received, total) });
                           })
                         : null;
                 const blob = storedBlob || remoteBlob;
                 if (!blob) throw new Error(`无法读取第 ${index + 1} 个视频`);
+                onProgress?.({ phase: "reading", progress: mergeReadProgress(index, inputs.length) });
                 const name = `merge-${serial}-${index}.mp4`;
                 await ffmpeg.writeFile(name, await fetchFile(blob));
                 files.push(name);
                 sources.push({ name, width: input.width, height: input.height, hasAudio: input.hasAudio });
-                onProgress?.({ phase: "reading", progress: Math.round(((index + 1) / inputs.length) * 45) });
+                onProgress?.({ phase: "reading", progress: mergeReadProgress(index + 1, inputs.length) });
             }
             const plan = buildMergeArgs(sources, outputName);
             files.push(outputName);
@@ -191,11 +229,15 @@ export async function mergeVideos(inputs: MergeVideoInput[], onProgress?: (progr
                 logs.push(message);
                 if (logs.length > 40) logs.shift();
             };
+            // 时长未知时无法换算百分比，标记为不确定进度，避免编码阶段长时间停在 46%。
             const onEncodeProgress = ({ time }: { time: number }) => {
-                if (!totalSeconds || !Number.isFinite(time) || time <= 0) return;
+                if (!totalSeconds || !Number.isFinite(time) || time <= 0) {
+                    onProgress?.({ phase: "encoding", progress: 46, indeterminate: !totalSeconds });
+                    return;
+                }
                 onProgress?.({ phase: "encoding", progress: Math.min(99, Math.round(46 + (time / 1e6 / totalSeconds) * 53)) });
             };
-            onProgress?.({ phase: "encoding", progress: 46 });
+            onProgress?.({ phase: "encoding", progress: 46, indeterminate: !totalSeconds });
             const runPlan = async (args: string[]) => {
                 let code = 1;
                 try {
@@ -218,7 +260,7 @@ export async function mergeVideos(inputs: MergeVideoInput[], onProgress?: (progr
                 exitCode = await runPlan(plan.args);
                 if (exitCode !== 0 && plan.withAudio) {
                     // 元数据缺失时无法预判哪一段真的没有音轨：去掉音轨重试一次，而不是让整次合并失败。
-                    onProgress?.({ phase: "encoding", progress: 47 });
+                    onProgress?.({ phase: "encoding", progress: 47, indeterminate: !totalSeconds });
                     exitCode = await runPlan(buildMergeArgs(sources, outputName, { withAudio: false }).args);
                 }
             } catch (error) {

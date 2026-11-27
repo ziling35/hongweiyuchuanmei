@@ -89,6 +89,8 @@ export function CanvasMergeStatusToast({ progress, theme }: { progress: MergeVid
     const { t } = useTranslation();
     const detail = progress.phase === "loading" ? t("canvasPage.feedback.mergeLoading") : progress.phase === "reading" ? t("canvasPage.feedback.mergeReading") : t("canvasPage.feedback.mergeEncoding");
     const percent = Math.max(0, Math.min(100, Math.round(progress.progress)));
+    // 加载转码组件、下载大视频时没有可换算的百分比，用不确定进度避免看起来卡死。
+    const indeterminate = Boolean(progress.indeterminate) && percent < 100;
     return (
         <div
             data-canvas-no-zoom
@@ -107,11 +109,11 @@ export function CanvasMergeStatusToast({ progress, theme }: { progress: MergeVid
                     </span>
                 </span>
                 <span className="shrink-0 text-[var(--fs-tiny)] tabular-nums" style={{ color: theme.node.faint }}>
-                    {percent}%
+                    {indeterminate ? "…" : `${percent}%`}
                 </span>
             </div>
             <div className="mt-2 h-1 overflow-hidden rounded-full" style={{ background: theme.toolbar.itemHover }}>
-                <div className="h-full rounded-full transition-all duration-300" style={{ width: `${percent}%`, background: theme.node.activeStroke }} />
+                <div className={`h-full rounded-full transition-all duration-300${indeterminate ? " animate-pulse" : ""}`} style={{ width: indeterminate ? "35%" : `${percent}%`, background: theme.node.activeStroke }} />
             </div>
         </div>
     );

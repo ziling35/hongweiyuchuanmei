@@ -678,7 +678,8 @@ export function useCanvasMediaTools({
                 return;
             }
             mergeVideoRunningRef.current = true;
-            setMergeVideoProgress({ phase: "reading", progress: 0 });
+            // 排队等待、加载 core、下载源文件都还没有可换算的百分比，先按不确定进度显示。
+            setMergeVideoProgress({ phase: "reading", progress: 0, indeterminate: true });
             try {
                 const blob = await mergeVideos(
                     videos.map((node) => ({
