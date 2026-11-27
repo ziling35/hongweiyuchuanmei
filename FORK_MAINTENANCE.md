@@ -64,13 +64,30 @@ ghcr.io/ziling35/open-ai-canvas-yingce-agent
 
 ## 4. GHCR 权限
 
-新推送的包默认私有，服务器拉取前必须登录，否则 `docker pull` 返回 401：
+仓库现在是公开状态，三个包随之公开。**服务器不需要 `docker login` 就能拉**，验证方式：
+
+```bash
+curl -sS "https://ghcr.io/token?service=ghcr.io&scope=repository:ziling35/open-ai-canvas-backend:pull"
+# 返回体里带 "token" 就说明包是公开的；返回 denied 则需要下面两种处理之一
+```
+
+拉不动时（401 / denied）二选一：把三个包在 GitHub → Packages 里改成 public，或者登录：
 
 ```bash
 echo '<PAT，至少 read:packages>' | docker login ghcr.io -u ziling35 --password-stdin
 ```
 
-也可以把三个包在 GitHub → Packages 里改为 public。
+国内机器直连 `ghcr.io` 偏慢，可用南大镜像（实测可匿名代理本仓库三个包）：
+
+```bash
+docker pull ghcr.nju.edu.cn/ziling35/open-ai-canvas-web:sha-<完整commit>
+```
+
+脚本的拉取前缀和 digest 校验都用 `IMAGE_REPOSITORY`，换镜像站要整段替换：
+
+```bash
+IMAGE_REPOSITORY=ghcr.nju.edu.cn/ziling35/open-ai-canvas ./scripts/update-server.sh --dry-run
+```
 
 注意：`ubuntu-24.04-arm` runner 只对公开仓库开放。仓库一旦转为私有，arm64 构建会失败，需要去掉 arm64 矩阵项或改用自建 runner。
 
