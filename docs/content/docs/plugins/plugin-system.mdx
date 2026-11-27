@@ -89,6 +89,8 @@ Eagle 插件属于此类，具体方案见第 8 节。
 
 插件以一个统一的 `.yingce-plugin` 包作为入口。包内固定包含 `manifest.json`，也可以包含受沙箱约束的 Web 入口和静态资源。Manifest 负责描述插件能力、权限和运行时；包文件负责承载对应版本的实现，不能再把“协议 JSON”和“UI 插件源码”拆成两套安装系统。
 
+图像 provider 的 `parameters` 逐个字段的语义、与宿主能力的映射以及像素尺寸判定，见[图像能力参数清单](/docs/plugins/manifest-parameters)。
+
 建议的最小包结构：
 
 ```text

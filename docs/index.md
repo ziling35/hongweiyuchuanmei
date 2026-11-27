@@ -80,6 +80,7 @@ ADR-0001～0007 的站内手工剪辑方案已随产品减负退场，保留为�
 功能、代码地图、待办、待测试分别维护在以下页面；尚未建立的专题会在对应任务中补齐：
 
 - [AI 审美批改画布插件](content/docs/plugins/ai-art-critique.mdx)
+- [图像能力参数清单](content/docs/plugins/manifest-parameters.mdx)：插件 `parameters` 字段语义、`size` 像素判定、`allowCustom` 与宿主能力映射
 - [功能](content/docs/overview/features.mdx)
 - [本地开发](content/docs/backend/local-development.mdx)
 - [HTTP API 合同](content/docs/backend/http-api.mdx)

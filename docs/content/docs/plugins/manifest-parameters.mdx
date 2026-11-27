@@ -1,0 +1,233 @@
+---
+title: 图像能力参数清单
+description: 声明式插件 contributes.providers[].parameters 的字段语义、size 参数与宿主能力的映射，以及 allowCustom 的判定规则
+---
+
+# 图像能力参数清单
+
+`.yingce-plugin` 里图像 provider 的 `parameters` 声明决定三件事：管理端能力面板显示什么、生成时发送什么、宿主在落盘前补什么。本文是这套字段的完整参考。
+
+代码是唯一事实来源，改动时同步这三处：
+
+- `backend/internal/protocol/image_parameters.go`：结构定义、清单校验、取值校验
+- `backend/internal/app/image_parameters.go`：把声明投影成宿主能力（`ImageCapabilityConfig`）
+- `web/src/lib/image-parameters.ts`：前端用同一套判定，保证面板与后端一致
+
+## 1. 字段总表
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `name` | string | 是 | `^[A-Za-z][A-Za-z0-9_]{0,63}$`，同一 provider 内唯一 |
+| `label` | string | 是 | 面板显示名，不能为空 |
+| `type` | string | 是 | `string` / `number` / `integer` / `boolean` |
+| `description` | string | 否 | 参数说明 |
+| `values` | array | 否 | 枚举值；省略表示不限制取值 |
+| `min` | number | 否 | 数值下界；在 `size` 上另有语义，见 §4.3 |
+| `max` | number | 否 | 数值上界；在 `size` 上另有语义，见 §4.3 |
+| `step` | number | 否 | 数值步长，必须大于 0 |
+| `maxLength` | integer | 否 | 字符串最大长度（按 rune 计） |
+| `default` | 标量 | 否 | 默认值，必须能通过自身约束 |
+| `required` | boolean | 否 | 是否必填 |
+| `pricing` | boolean | 否 | 标记该参数参与计价 |
+| `binding` | string | 否 | 仅 `aspectRatio` / `resolution` / `quality` / `imageCount` / `transparentBackground`，同一 provider 内唯一 |
+| `encoding` | string | 否 | 仅当 `binding` 为 `aspectRatio` 时可写，取值 `pixels` / `ratio` |
+| `allowCustom` | boolean | 否 | 放开枚举限制，让清单变成「可选项」而不是「白名单」，见 §4.2 |
+| `models` | string[] | 否 | 只在列出的模型名上生效，省略表示所有模型 |
+| `enabled` | boolean | 否 | 默认 `true`，显式 `false` 表示该参数暂不启用 |
+
+## 2. 参数名到宿主能力的映射
+
+投影在 `projectImageParameters` 里完成，按 `name` 匹配：
+
+| `name` | 宿主字段 | 取值来源 |
+| --- | --- | --- |
+| `size` | `Image.Size` | `values` / `default` / `encoding` / `min` / `max` / `step` / `allowCustom` |
+| `imageResolution` | `Image.Resolution` | `values` / `default` |
+| `quality` | `Image.Quality` | `values` / `default` |
+| `transparentBackground` | `Image.TransparentBackground` | `default` |
+| `count` | `Image.MaxOutputs` | `max` |
+
+其它 `name` 只作为扩展字段原样透传给上游，不投影成宿主能力。
+
+没有声明 `size` 时，宿主的尺寸能力被置为 `parameter: "none"`、`values: []`，面板上不再出现尺寸选择。
+
+## 3. 生效范围
+
+`models` 用来让一条声明只作用于部分模型。宿主在应用参数前先按模型名过滤：
+
+- 省略 `models`：所有模型都生效
+- `models: ["gpt-image-2.6-4k"]`：只有该模型生效，前缀 `models/` 会被去掉后比较
+
+这条规则对 `enabled` 同样适用：`enabled: false` 的参数不参与投影，等价于没写。
+
+## 4. `size` 参数
+
+### 4.1 判定成像素还是比例
+
+宿主先决定 `size` 这条参数最终按像素还是按比例解释：
+
+```
+parameter = "aspect_ratio"
+若 encoding == "pixels"，或 values 里任一值含 "x"  →  parameter = "size"
+若 values 里任一值含 ":"                        →  退回 "aspect_ratio"
+```
+
+含义：
+
+- 想要精确像素（`1024x1024`、`1440x2560`）：写 `values` 用像素字符串，或显式写 `encoding: "pixels"`
+- 想要比例（`16:9`、`9:16`）：`values` 用比例字符串
+- **两种混写会退化成比例**，像素值失效。这是最常见的配置错误
+
+### 4.2 `allowCustom` 判定
+
+`values` 一旦有值，默认被当作白名单：清单外的尺寸在发出前就被拒绝。`allowCustom` 用来把清单降级成「可选快捷项」。
+
+| `values` | `allowCustom` | 最终行为 |
+| --- | --- | --- |
+| 未声明 | 未声明 | 允许自定义 |
+| 有值 | 未声明 | 白名单，清单外被拒 |
+| 有值 | `true` | 清单只是可选项，允许自定义 |
+| 有值 | `false` | 白名单 |
+| 未声明 | `false` | 仍允许自定义（没有清单可供校验） |
+
+实现上 `allowCustom` 是 `*bool`，用来区分「没写」和「显式 false」：
+
+```go
+image.Size.AllowCustom = len(p.Values) == 0
+if p.AllowCustom != nil {
+    image.Size.AllowCustom = *p.AllowCustom
+}
+```
+
+前端保持一致：`size.allowCustom ?? !size.values?.length`。
+
+放开之后，取值校验同步放开：
+
+```go
+if len(p.Values) == 0 || (p.AllowCustom != nil && *p.AllowCustom) {
+    return true
+}
+```
+
+注意类型与长度约束仍然先执行，`allowCustom` 只绕过枚举白名单，不会绕过 `type` / `maxLength` / `min` / `max` / `step` 的类型检查。
+
+### 4.3 像素约束
+
+`size` 参数上的三个数值字段映射到像素校验：
+
+| manifest 字段 | 宿主字段 | 含义 |
+| --- | --- | --- |
+| `step` | `Size.Step` | 宽高对齐步长 |
+| `min` | `Size.MinPixels` | **像素总量下界**，不是边长 |
+| `max` | `Size.MaxPixels` | **像素总量上界**，不是边长 |
+
+未声明时使用默认值：
+
+| 约束 | 默认值 |
+| --- | --- |
+| `step` | 16 |
+| `minPixels` | 655360 |
+| `maxPixels` | 8294400 |
+| `maxEdge` | 3840 |
+| `maxRatio` | 3.0 |
+
+`maxEdge` 与 `maxRatio` 没有对应的 manifest 字段，只能在管理端能力面板里调整。
+
+这条默认值是「自定义尺寸被拒」的高频原因：`800x800 = 640000` 低于默认 `minPixels` 655360，必须显式把 `min` 降到 640000 或更低，请求才发得出去。
+
+### 4.4 档位与预设
+
+声明了 `imageResolution` 时，预设的档位必须落在该参数的 `values` 里才会保留：
+
+- `imageResolution.values: ["1k", "2k", "4k"]` → 三个档位的预设都保留
+- 只声明 `["1k", "2k"]` → 4K 预设被过滤掉，面板不显示
+
+预设的像素值本身来自能力配置的 `presets`，宿主按「档位 + 比例」索引，不会用 manifest 里的 `values` 去反推。
+
+## 5. 校验规则
+
+清单在保存时整批校验，任一条不合格都会拒绝整个 manifest：
+
+- `name` 不符合命名规则，或在同一 provider 内重复
+- `label` 为空
+- `type` 不在四个允许值里
+- `encoding` 非空但 `binding` 不是 `aspectRatio`，或 `encoding` 不是 `pixels` / `ratio`
+- `binding` 不在白名单里，或同一 provider 内重复
+- `min` / `max` / `step` 非有限值，或 `min > max`，或 `step <= 0`，或 `maxLength < 0`
+- `values` 里某个值不满足自身约束（先清空 `values` 再校验，所以枚举值不受白名单本身限制）
+- `default` 不满足自身约束
+
+## 6. 完整示例
+
+一个图像 provider 的能力声明，覆盖像素尺寸、自定义、档位、质量和张数：
+
+```json
+{
+  "id": "example-image",
+  "label": "Example Image",
+  "capabilities": ["image"],
+  "baseUrl": "https://api.example.com",
+  "parameters": [
+    {
+      "name": "size",
+      "label": "画幅 / 尺寸",
+      "type": "string",
+      "binding": "aspectRatio",
+      "encoding": "pixels",
+      "allowCustom": true,
+      "step": 16,
+      "min": 65536,
+      "max": 8294400,
+      "values": ["1024x1024", "1440x2560", "2560x1440"],
+      "default": "1024x1024"
+    },
+    {
+      "name": "imageResolution",
+      "label": "分辨率",
+      "type": "string",
+      "binding": "resolution",
+      "values": ["1k", "2k"],
+      "default": "1k"
+    },
+    {
+      "name": "quality",
+      "label": "图片质量",
+      "type": "string",
+      "binding": "quality",
+      "pricing": true,
+      "values": ["medium", "high"],
+      "default": "medium"
+    },
+    {
+      "name": "count",
+      "label": "生成张数",
+      "type": "integer",
+      "binding": "imageCount",
+      "min": 1,
+      "max": 4,
+      "default": 1
+    }
+  ]
+}
+```
+
+这段声明在面板上的效果：尺寸可选三个预设，也能自己填清单外的像素；`1k` / `2k` 两个档位可选；质量两档并参与计价；张数上限 4。
+
+## 7. 常见错误
+
+| 现象 | 原因 |
+| --- | --- |
+| 写了 `allowCustom: true` 但清单外仍被拒 | 宿主版本早于该字段；反序列化会静默丢弃未知字段，需要升级后端 |
+| `min: 800` 后几乎所有尺寸都被拒 | `min` 是像素总量不是边长；`800x800` 应写 `min: 640000` |
+| 填了像素值却变成比例选择 | `values` 里混了 `16:9` 这类含 `:` 的值，`size` 整体退化成 `aspect_ratio` |
+| manifest 保存失败，提示 encoding 非法 | `encoding` 只能配 `binding: "aspectRatio"` |
+| 4K 档位在面板上消失 | `imageResolution` 的 `values` 没包含 `4k` |
+| `allowCustom` 写在 `quality` 上 | 该字段只对 `size` 有意义；写在其它参数上会放开那个参数的枚举校验 |
+
+## 8. 如何确认生效
+
+1. 管理后台 → 渠道与模型 → 目标模型 → 能力与参数 → 尺寸参数。允许自定义时会出现「自定义比例或尺寸」入口。
+2. 直接看模型能力接口返回的 `image.size`：`allowCustom` 应为 `true`，`values` 应保留声明的清单。
+3. 请求一个清单外像素（例如 `800x800`）。被拒时的错误 `reason` 是 `unsupported_value`。
+
+清单外像素能发出去，不代表上游接受。上游可能返回 400，也可能静默吸附到它自己的标准尺寸。静默吸附的情况用「按请求尺寸重采样」把产物改回请求像素；该开关是模型能力上的 `image.size.resizeToRequested`，需要 `parameter` 为 `size` 才能开启。

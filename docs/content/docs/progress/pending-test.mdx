@@ -6053,3 +6053,13 @@ URL 使用归属校验后的资源访问地址，本地存储也可签发厂商�
 - [ ] 在后台把这条通知分别选纯色与渐变保存，确认刷新后仍保留，且前台通知条、列表底色列与深浅预览三处一致。
 - [ ] 桌面宽度下确认通知标题不再被右上角积分 / 充值 / 图标组遮挡；点通知条右侧关闭后，操作组回到窗口右上角原位。
 - 本地验证：`bun run typecheck` 通过；`bun test test/banner-notice.test.ts test/admin-ui-regressions.test.ts` 35 项通过（含渐变曲线形状断言）。开启仓库自带 w64devkit 后 `CGO_ENABLED=1 go test ./internal/app -run Banner` 11 项通过（含底色落库与非法取值拒绝），`go test ./internal/database -run TestCurrentSchemaVersionMatchesMigrationPlan` 通过。真实 Chrome 实测：1900×900 下通知条为 0–1884 满宽、侧栏在 y=40 之下不遮挡、右上角操作组落在通知条下方；881px 登录态截图逐像素采样，通知条从左端 `(79,13,15)` 平滑升到中心 `(162,23,82)` 再回落，无平涂段与断层。
+
+## 待用户验证：插件尺寸能力（重采样开关与 allowCustom）
+
+- 已实现（重采样开关补齐）：`ImageParameterSizeEditor` 是插件/声明式模型走的「参数驱动」尺寸编辑器，之前只有旧版协议卡片带「按请求尺寸重采样」，插件模型完全看不到该开关。现在两条渲染路径都有，位置在「尺寸参数 → 配置画幅与精确像素」下方，仅在 `size`（像素）参数下出现，值经 `updateImageParameterSize` 写回并由 `projectImageParameters` 保留。
+- 已实现（`allowCustom` 可由插件声明）：`ImageParameter` 新增 `allowCustom *bool`。此前 `AllowCustom` 只能由宿主按「有没有声明 `values`」推算，插件写该字段会被反序列化静默丢弃，导致「声明了标准尺寸就永远不能填自定义像素」。现在声明值优先，缺省时保持原推算；取值校验（`Accepts` / `imageParameterAccepts`）同步放开，避免面板能填、提交被拒。前后端判定一致：`size.allowCustom ?? !values.length`。
+- 已补充文档：新增[图像能力参数清单](/docs/plugins/manifest-parameters)，覆盖字段总表、参数名到宿主能力的映射、`size` 的像素/比例判定、`allowCustom` 五态判定表、像素约束默认值、清单校验规则、完整 manifest 示例与常见错误，并从[插件系统设计](/docs/plugins/plugin-system)第 5 节链入。
+- [ ] 后台打开坤肉模型的「能力与参数 → 尺寸参数」，确认「按请求尺寸重采样」开关出现并可保存。
+- [ ] 给坤肉的 `size` 参数加 `"allowCustom": true`（必要时加 `"min"`）后重新上传/更新能力，确认画布、创作页、工作台和智能体创建节点时的参数确认窗都出现「自定义比例或尺寸」。
+- [ ] 请求 `800x800`：确认不再被 `minPixels` 655360 拦下；若上游静默吸附到 1024×1024，确认开启重采样后落盘产物为 800×800；若上游返回 400，则说明该渠道只接受自身清单，需要回落为重采样或改插件清单。
+- 本地验证：`tsc --noEmit`、`eslint src test`、`prettier --check` 通过；新增 `test/image-parameter-allow-custom.test.ts` 3 项通过，图片相关 8 个测试文件 110 项通过，`image-operation-plan` / `image-custom-size` 等 3 个文件 17 项通过；后端 `go build ./...` 通过，`go test ./internal/protocol` 通过，`go test ./internal/app -run TestProjectImageParametersHonorsDeclaredAllowCustom` 通过。文档站未在本地构建：本 fork 的 `docs/` 缺少 Next 站点配置（无 `package.json`），只做了 MDX 静态检查（frontmatter 完整、代码块外无裸 `{` `}` 与 JSX 标签）。
