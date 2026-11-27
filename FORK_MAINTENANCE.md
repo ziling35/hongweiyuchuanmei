@@ -125,6 +125,30 @@ docker compose --env-file .env -f docker-compose.deploy.yml exec -T postgres \
   sh -c 'pg_restore --clean --if-exists -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < backups/db-<时间戳>.dump
 ```
 
+### 一键更新脚本
+
+`scripts/update-server.sh` 会自动查出 `hw` 上最近一次**构建成功**的提交，拼成 `sha-<完整commit>` 再交给 `update-server-image.sh`，不用自己翻 Actions 找 SHA：
+
+```bash
+./scripts/update-server.sh --check      # 只对比当前版本和最新版本，不做修改
+./scripts/update-server.sh --dry-run    # 走完拉取和 digest 解析，不写文件不重启
+./scripts/update-server.sh              # 更新到最新一次构建成功的镜像
+./scripts/update-server.sh --rollback   # 回退到最近一次更新前的 .env（不含数据库还原）
+```
+
+不用先 clone 也能跑：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ziling35/hongweiyuchuanmei/hw/scripts/update-server.sh \
+  | sudo bash -s -- --check
+```
+
+- 部署目录自动探测（同时含 `.env` 和 `docker-compose.deploy.yml`），也可用 `DEPLOY_DIR=` 指定
+- 当前标签已等于目标标签时直接退出，改 `FORCE=1` 才强制重跑
+- 匿名调用 GitHub API 有 60 次/小时限制；触发限流时设 `GITHUB_TOKEN`（需 `actions:read`），或直接用 `./scripts/update-server.sh sha-<完整commit>` 跳过查询
+- 镜像不可见时优先用 `GHCR_TOKEN` 自动登录 ghcr.io，否则打印登录或改包可见性的步骤
+- `--rollback` 只还原 `.env` 并 `up -d --pull never`，数据库还原仍需手工执行上面的命令
+
 ## 7. 冲突纪律
 
 1. `VERSION` 和 `CHANGELOG.md` 只在打版本 tag 的那次提交里修改；同步冲突时直接取上游内容，再重新 bump
