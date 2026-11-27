@@ -416,7 +416,7 @@ func TestProjectImageParametersHonorsDeclaredAllowCustom(t *testing.T) {
 		want      bool
 	}{
 		"未声明 allowCustom 时为白名单": {parameter: declared, want: false},
-		"声明 allowCustom 时开放自定义":  {parameter: withCustom, want: true},
+		"声明 allowCustom 时开放自定义": {parameter: withCustom, want: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			profile := &ImageCapabilityConfig{Parameters: []protocol.ImageParameter{testCase.parameter}}
