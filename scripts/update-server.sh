@@ -23,6 +23,8 @@
 #   GHCR_USER         默认取 REPOSITORY 的 owner
 #   GITHUB_TOKEN      私有仓库或规避匿名限流时使用
 #   FORCE=1           当前标签已等于目标标签时仍然重跑
+#   SKIP_PULL=1       离线搬运：跳过联网检查和 docker pull，直接用本地镜像
+#   SKIP_DIGEST_PIN=1 本地镜像没有仓库 digest 时按标签部署
 #   CONFIRM=1         回退时跳过交互确认
 
 set -Eeuo pipefail
@@ -171,23 +173,32 @@ if [[ "$CURRENT_TAG" == "$TARGET_TAG" && "${FORCE:-0}" != "1" ]]; then
     exit 0
 fi
 
-step "检查镜像可拉取"
-if ! docker manifest inspect "$IMAGE_REPOSITORY-backend:$TARGET_TAG" >/dev/null 2>&1; then
-    if [[ -n "${GHCR_TOKEN:-}" ]]; then
-        info "使用 GHCR_TOKEN 登录 ghcr.io"
-        printf '%s' "$GHCR_TOKEN" |
-            docker login ghcr.io -u "${GHCR_USER:-${REPOSITORY%%/*}}" --password-stdin >/dev/null ||
-            fail "docker login ghcr.io 失败，请确认 GHCR_TOKEN 含 read:packages 权限且未过期"
-    elif grep -q 'ghcr.io' "${HOME:-/root}/.docker/config.json" 2>/dev/null; then
-        info "已登录 ghcr.io，继续"
-    else
-        fail "无法访问 $IMAGE_REPOSITORY-backend:$TARGET_TAG。多为镜像不可见，两种解法：
+if [[ "${SKIP_PULL:-0}" == "1" ]]; then
+    step "跳过联网检查（离线搬运）"
+    for name in backend web yingce-agent; do
+        docker image inspect "$IMAGE_REPOSITORY-$name:$TARGET_TAG" >/dev/null 2>&1 ||
+            fail "本地没有 $IMAGE_REPOSITORY-$name:$TARGET_TAG；请先 docker load 搬运包"
+    done
+    info "三个镜像已在本地，跳过 ghcr.io 联网检查"
+else
+    step "检查镜像可拉取"
+    if ! docker manifest inspect "$IMAGE_REPOSITORY-backend:$TARGET_TAG" >/dev/null 2>&1; then
+        if [[ -n "${GHCR_TOKEN:-}" ]]; then
+            info "使用 GHCR_TOKEN 登录 ghcr.io"
+            printf '%s' "$GHCR_TOKEN" |
+                docker login ghcr.io -u "${GHCR_USER:-${REPOSITORY%%/*}}" --password-stdin >/dev/null ||
+                fail "docker login ghcr.io 失败，请确认 GHCR_TOKEN 含 read:packages 权限且未过期"
+        elif grep -q 'ghcr.io' "${HOME:-/root}/.docker/config.json" 2>/dev/null; then
+            info "已登录 ghcr.io，继续"
+        else
+            fail "无法访问 $IMAGE_REPOSITORY-backend:$TARGET_TAG。多为镜像不可见，两种解法：
   1) 服务器执行 docker login ghcr.io -u ${REPOSITORY%%/*} --password-stdin（PAT 至少 read:packages），或
   2) 在 GitHub → Packages 把三个 open-ai-canvas-* 包改成 public"
-    fi
+        fi
 
-    docker manifest inspect "$IMAGE_REPOSITORY-backend:$TARGET_TAG" >/dev/null 2>&1 ||
-        fail "登录后仍无法访问 $TARGET_TAG，确认该提交的 Build 步骤确实推送成功"
+        docker manifest inspect "$IMAGE_REPOSITORY-backend:$TARGET_TAG" >/dev/null 2>&1 ||
+            fail "登录后仍无法访问 $TARGET_TAG，确认该提交的 Build 步骤确实推送成功"
+    fi
 fi
 
 DEPLOY_SCRIPT="$DEPLOY_DIR/scripts/update-server-image.sh"

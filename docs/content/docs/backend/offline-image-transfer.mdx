@@ -1,0 +1,167 @@
+---
+title: 离线搬运镜像更新服务器
+description: 目标服务器拉不动 ghcr.io 时，用另一台已拉通的机器打包镜像、搬运、加载并完成更新
+---
+
+# 离线搬运镜像更新服务器
+
+## 什么时候该走这条路
+
+出现下面任一情况，直连拉取就不是「慢」而是「通不了」：
+
+- `docker pull` 停在 `Pulling from ...` 之后一行不动，**没有** `Pulling fs layer` / `Downloading` 分层进度
+- 同一台机器拉 `backend` 秒过、拉 `web` 永远卡住
+- 出网受限，或按流量计费，不方便重复拉几百 MB
+
+前置条件：**有一台能拉通的机器，且架构与目标服务器一致**。两边都先确认：
+
+```bash
+docker version --format '{{.Server.Version}}'
+docker image inspect ghcr.io/ziling35/open-ai-canvas-backend:sha-<commit> \
+  --format '{{.Os}}/{{.Architecture}}'
+```
+
+x86_64 服务器是 `linux/amd64`，ARM 服务器是 `linux/arm64`。两边不一致时，加载出来的镜像跑不起来（`exec format error`）。
+
+## 第一步：在能拉通的机器上准备好三个镜像
+
+先固定两个变量，后面所有命令都用它们：
+
+```bash
+TAG=sha-8b3eaf478db2ecce8c9e82c206cd25b3495f90f2
+REGISTRY=ghcr.io/ziling35/open-ai-canvas
+```
+
+拉取三件套（这台机器上已经有的会自动跳过）：
+
+```bash
+for name in backend web yingce-agent; do
+  docker pull "$REGISTRY-$name:$TAG"
+done
+```
+
+确认本地镜像带仓库 digest —— 这决定目标机能不能继续用「固定 digest」的方式部署：
+
+```bash
+for name in backend web yingce-agent; do
+  echo "--- $name"
+  docker image inspect "$REGISTRY-$name:$TAG" \
+    --format 'tags={{.RepoTags}} digests={{.RepoDigests}}'
+done
+```
+
+`digests` 里能看到 `...@sha256:...` 就记下来，第三步会用到。
+
+## 第二步：打包
+
+```bash
+docker save -o "open-ai-canvas-$TAG.tar" \
+  "$REGISTRY-backend:$TAG" \
+  "$REGISTRY-web:$TAG" \
+  "$REGISTRY-yingce-agent:$TAG"
+
+gzip -9 "open-ai-canvas-$TAG.tar"
+sha256sum "open-ai-canvas-$TAG.tar.gz" > "open-ai-canvas-$TAG.tar.gz.sha256"
+ls -lh "open-ai-canvas-$TAG.tar.gz" "open-ai-canvas-$TAG.tar.gz.sha256"
+```
+
+体积参考：三个镜像压缩后通常 300–700 MB。
+
+**必须用 tag 引用来 `save`，不要用 `@sha256:` 引用**。用 digest 引用保存的镜像，加载后 `REPOSITORY` 会变成 `<none>`，脚本找不到它。
+
+## 第三步：传到目标服务器
+
+```bash
+scp "open-ai-canvas-$TAG.tar.gz" "open-ai-canvas-$TAG.tar.gz.sha256" root@<目标服务器>:/root/
+```
+
+内网可用 `rsync -P` 续传，或走 U 盘、对象存储。传输中断后 `rsync` 能接着传，`scp` 要重来。
+
+## 第四步：在目标服务器上校验并加载
+
+```bash
+cd /root
+sha256sum -c "open-ai-canvas-$TAG.tar.gz.sha256"
+gunzip -c "open-ai-canvas-$TAG.tar.gz" | docker load
+```
+
+加载完确认三个镜像都在、且标签正确：
+
+```bash
+docker images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' | grep open-ai-canvas
+```
+
+应该看到三行，形如 `ghcr.io/ziling35/open-ai-canvas-backend:sha-<commit>`。如果看到 `<none>`，说明打包时用了 digest 引用，回第二步重打包。
+
+## 第五步：确认 digest 是否被保留
+
+```bash
+docker image inspect "ghcr.io/ziling35/open-ai-canvas-backend:$TAG" --format '{{json .RepoDigests}}'
+```
+
+| 输出 | 下一步 |
+| --- | --- |
+| 含 `@sha256:...` | 走 **方案 A**，保持不可变固定 |
+| `[]` | 走 **方案 B**，按标签部署 |
+
+`docker save` / `docker load` 是否保留仓库 digest，取决于 Docker 版本和镜像存储后端（graphdriver 与 containerd 行为不同）。所以这里必须先查，不要假设。
+
+## 第六步 A：保持 digest 固定（推荐）
+
+镜像已经在本地，跳过联网检查和拉取，其余流程（备份 `.env`、备份数据库、迁移、重启、健康检查）完全不变：
+
+```bash
+cd /www/wwwroot/ai.liehaotech.com
+sudo env SKIP_PULL=1 bash ./scripts/update-server.sh
+```
+
+先用 `--dry-run` 看一眼会写什么：
+
+```bash
+sudo env SKIP_PULL=1 bash ./scripts/update-server.sh --dry-run
+```
+
+## 第六步 B：按标签部署（digest 没保留时）
+
+```bash
+sudo env SKIP_PULL=1 SKIP_DIGEST_PIN=1 bash ./scripts/update-server.sh
+```
+
+代价：`.env` 里记录的是 `ghcr.io/...:sha-<commit>` 而不是 digest。标签理论上可以被重新推送覆盖，所以「同一标签永远对应同一份内容」的保证失效。离线场景可以接受，能正常从镜像站拉取时不要用。
+
+## 两个开关的作用范围
+
+| 变量 | 生效脚本 | 作用 |
+| --- | --- | --- |
+| `SKIP_PULL=1` | `update-server.sh` + `update-server-image.sh` | 跳过 `docker manifest inspect` 联网检查和 `docker pull`，只校验本地镜像存在 |
+| `SKIP_DIGEST_PIN=1` | `update-server-image.sh` | 不解析仓库 digest，`.env` 写标签引用 |
+
+两个变量都通过环境传入，`update-server.sh` 会自动透传给 `update-server-image.sh`，不用重复写。
+
+## 回退
+
+离线更新和其它更新共用同一套备份与回退，`backups/` 下会有本次的 `.env` 和数据库转储：
+
+```bash
+cd /www/wwwroot/ai.liehaotech.com
+sudo env CONFIRM=1 bash ./scripts/update-server.sh --rollback
+```
+
+`--rollback` 只还原 `.env` 并 `up -d --pull never`，**不动数据库**。若这次已经执行过新迁移，还需要手工还原：
+
+```bash
+docker compose --env-file .env -f docker-compose.deploy.yml exec -T postgres \
+  sh -c 'pg_restore --clean --if-exists -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < backups/db-<时间戳>.dump
+```
+
+## 常见问题
+
+| 现象 | 原因与处理 |
+| --- | --- |
+| `docker save` 报 `No such image` | 标签拼错，或那台机器上没拉过这个 tag。先跑第一步的 `docker pull` |
+| 加载后 `docker images` 里是 `<none>` | 打包时用了 `@sha256:` 引用。改用 tag 引用重新 `save` |
+| 脚本报「本地没有 ghcr.io/...」 | `docker load` 没成功，或加载出来的标签与 `TAG` 不一致。用 `docker images` 核对 |
+| 脚本报「镜像未返回可验证的仓库 digest」 | 目标机没有保留仓库 digest。改用方案 B（`SKIP_DIGEST_PIN=1`） |
+| 容器起不来，日志是 `exec format error` | 搬运的镜像是另一种 CPU 架构。换一台同架构机器重新打包 |
+| 三个镜像都有，但 `web` 容器不停重启 | 常见于 `.env` 里的镜像引用写法不一致（两个是 digest、一个是 tag）。统一走同一种方案 |

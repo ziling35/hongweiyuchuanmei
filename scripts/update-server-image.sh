@@ -12,6 +12,9 @@
 #   COMPOSE_FILE      默认 docker-compose.deploy.yml
 #   CANVAS_HTTP_PORT  默认 .env 中的值，回落到 3000
 #   SKIP_DB_BACKUP=1  跳过 pg_dump（仅在你已有其他备份时使用）
+#   SKIP_PULL=1       跳过 docker pull，直接用本地已有镜像（离线搬运）
+#   SKIP_DIGEST_PIN=1 按标签部署而不固定 digest（本地镜像没有仓库 digest 时用，
+#                     代价是失去不可变固定；能从镜像站正常拉取时不要用）
 
 set -Eeuo pipefail
 
@@ -71,22 +74,42 @@ PREVIOUS_TAG="$(env_value CANVAS_IMAGE_TAG)"
 printf '部署目录：%s\n镜像仓库：%s\n目标标签：%s\n当前版本：%s\n' \
     "$DEPLOY_DIR" "$IMAGE_REPOSITORY" "$TARGET_TAG" "${PREVIOUS_TAG:-未知}"
 
-step "拉取目标镜像"
-for name in backend web yingce-agent; do
-    docker pull "$IMAGE_REPOSITORY-$name:$TARGET_TAG"
-done
+if [[ "${SKIP_PULL:-0}" == "1" ]]; then
+    step "跳过拉取（离线搬运，使用本地已有镜像）"
+    for name in backend web yingce-agent; do
+        docker image inspect "$IMAGE_REPOSITORY-$name:$TARGET_TAG" >/dev/null 2>&1 ||
+            fail "本地没有 $IMAGE_REPOSITORY-$name:$TARGET_TAG；请先 docker load 搬运包，或去掉 SKIP_PULL=1"
+        printf '已存在 %s\n' "$IMAGE_REPOSITORY-$name:$TARGET_TAG"
+    done
+else
+    step "拉取目标镜像"
+    for name in backend web yingce-agent; do
+        docker pull "$IMAGE_REPOSITORY-$name:$TARGET_TAG"
+    done
+fi
 
-step "解析仓库 digest"
 declare -A DIGESTS=()
-for name in backend web yingce-agent; do
-    digest="$(docker image inspect "$IMAGE_REPOSITORY-$name:$TARGET_TAG" \
-        --format '{{range .RepoDigests}}{{println .}}{{end}}' |
-        awk -v repository="$IMAGE_REPOSITORY-$name" '$0 ~ "^" repository "@sha256:" { print; exit }')"
-    [[ "$digest" =~ ^${IMAGE_REPOSITORY//\//\/}-$name@sha256:[a-f0-9]{64}$ ]] ||
-        fail "$name 镜像未返回可验证的仓库 digest（请确认已 docker login ghcr.io 且镜像已推送）"
-    DIGESTS[$name]="$digest"
-    printf '%s\n' "$digest"
-done
+if [[ "${SKIP_DIGEST_PIN:-0}" == "1" ]]; then
+    # 离线搬运后本地镜像可能没有仓库 digest；此时按标签部署，代价是失去不可变固定。
+    step "跳过 digest 固定（按标签部署）"
+    for name in backend web yingce-agent; do
+        docker image inspect "$IMAGE_REPOSITORY-$name:$TARGET_TAG" >/dev/null 2>&1 ||
+            fail "$name 镜像不存在，无法按标签部署"
+        DIGESTS[$name]="$IMAGE_REPOSITORY-$name:$TARGET_TAG"
+        printf '%s\n' "${DIGESTS[$name]}"
+    done
+else
+    step "解析仓库 digest"
+    for name in backend web yingce-agent; do
+        digest="$(docker image inspect "$IMAGE_REPOSITORY-$name:$TARGET_TAG" \
+            --format '{{range .RepoDigests}}{{println .}}{{end}}' |
+            awk -v repository="$IMAGE_REPOSITORY-$name" '$0 ~ "^" repository "@sha256:" { print; exit }')"
+        [[ "$digest" =~ ^${IMAGE_REPOSITORY//\//\/}-$name@sha256:[a-f0-9]{64}$ ]] ||
+            fail "$name 镜像未返回可验证的仓库 digest。离线搬运可用 SKIP_DIGEST_PIN=1 按标签部署"
+        DIGESTS[$name]="$digest"
+        printf '%s\n' "$digest"
+    done
+fi
 
 if ((DRY_RUN)); then
     step "dry-run：以下内容将写入 .env"
