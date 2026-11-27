@@ -499,6 +499,20 @@ export function ImageParameterSizeEditor({
                             onChange={updateSize}
                         />
                         <ImageSizeLimitsFields value={profile.size} disabled={disabled} onChange={(patch) => onChange(updateImageParameterSize(profile, { ...profile.size, ...patch }))} />
+                        {profile.size.parameter === "size" ? (
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <div className="text-sm">按请求尺寸重采样</div>
+                                    <p className="text-xs text-muted-foreground">上游只返回标准尺寸时，落盘前把产物重采样成用户请求的像素（仅 PNG/JPEG）</p>
+                                </div>
+                                <Switch
+                                    aria-label="按请求尺寸重采样"
+                                    disabled={disabled}
+                                    checked={Boolean(profile.size.resizeToRequested)}
+                                    onChange={(resizeToRequested) => onChange(updateImageParameterSize(profile, { ...profile.size, resizeToRequested }))}
+                                />
+                            </div>
+                        ) : null}
                     </>
                 ) : (
                     <>
