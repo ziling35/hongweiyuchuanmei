@@ -932,7 +932,9 @@ func (c *pluginRuntime) installLocked(data []byte, fileName string) (PluginView,
 		if old.ID != newRecord.ID {
 			continue
 		}
-		if isBuiltInPluginSource(old.Source) && !isPaymentPluginManifest(manifest) {
+		// 撤下的内置插件（官方目录里已不再发行，bootstrap 标记 withdrawn）不再由仓库管理，
+		// 允许管理员用自己的自定义包接管同一 ID；仍在发行的内置插件依旧不可上传覆盖。
+		if isBuiltInPluginSource(old.Source) && !old.Withdrawn && !isPaymentPluginManifest(manifest) {
 			return PluginView{}, fmt.Errorf("内置插件 %q 不能通过上传覆盖", old.ID)
 		}
 		if !old.Withdrawn && exists {
