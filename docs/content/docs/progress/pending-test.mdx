@@ -422,10 +422,13 @@ description: 当前项目已实现功能的手工验证清单与未确认边界
 
 ## 火山方舟 Seedance 2.5 视频协议
 
-- 已实现：独立 `volcengine-ark-seedance-25` 声明式协议，官方任务创建、分离轮询、取消、视频与尾帧结果解析；默认能力与短剧参考图布局已接入。
+- 已实现：独立 `volcengine-ark-seedance-25` 声明式协议，官方任务创建、分离轮询、取消、视频与尾帧结果解析；默认能力与短剧参考图布局已接入。该包已从内置官方插件降级为自建插件（源码与产物在 `custom-plugins/`），需要管理员在后台导入，不再随镜像内置。
 - 自动测试覆盖：参考素材顺序、首尾帧与全模态互斥、重复帧和缺失首帧拒绝、显式编辑/延长参数映射、扩展字段白名单、错误与临时媒体响应。不会用单元测试替代真实收费接口验收。
 - [ ] 用有权限的官方模型 ID / Endpoint ID 验收文生视频、首尾帧、全模态参考、取消和结果持久化。
 - [ ] 使用实际素材验收 `edit` / `extend`、MOV 播放兼容、尾帧和真实 Token 结算；宿主默认时长为 5 秒，显式编辑任务按官方合同发送 `duration=-1`。
+- [ ] 插件 v1.0.2 起不再拦截首尾帧画幅：画布上选首帧/尾帧并把画幅设为 9:16 等固定比例时，请求按所选比例直接下发（未选画幅仍发 `adaptive`），不再出现 `request_not_sent` 的「首尾帧仅支持 adaptive 比例」。用真实模型确认上游是否接受固定比例的首尾帧；若上游拒绝，错误应来自方舟而不是插件预检。
+- 短剧「上一段尾帧当首帧」那条路径仍固定 `adaptive`（跟随尾帧比例），由插件 `requestBindings` 保留，`protocol` 层用例已覆盖。该 provider 不再出现在 `provider_drama_references_test.go` / `drama_video_provider_continuity_test.go` 的官方协议行里（那两条链路依赖官方注册表），相关 app 用例本机缺 cgo + SQLite 未运行。
+- [ ] 降级后的首次切换：重启后端，登记表里该插件会被标记 `withdrawn` 并从可用列表消失；到「插件 → 导入插件」上传 `custom-plugins/volcengine-ark-seedance-25.yingce-plugin`，确认来源变为 `uploaded`、版本 `1.0.2`，且之后再升级镜像不会被内置包覆盖。
 
 ## WeNew API H3 视频协议
 
@@ -6068,3 +6071,15 @@ URL 使用归属校验后的资源访问地址，本地存储也可签发厂商�
 - [ ] 给坤肉的 `size` 参数加 `"allowCustom": true`（必要时加 `"min"`）后重新上传/更新能力，确认画布、创作页、工作台和智能体创建节点时的参数确认窗都出现「自定义比例或尺寸」。
 - [ ] 请求 `800x800`：确认不再被 `minPixels` 655360 拦下；若上游静默吸附到 1024×1024，确认开启重采样后落盘产物为 800×800；若上游返回 400，则说明该渠道只接受自身清单，需要回落为重采样或改插件清单。
 - 本地验证：`tsc --noEmit`、`eslint src test`、`prettier --check` 通过；新增 `test/image-parameter-allow-custom.test.ts` 3 项通过，图片相关 8 个测试文件 110 项通过，`image-operation-plan` / `image-custom-size` 等 3 个文件 17 项通过；后端 `go build ./...` 通过，`go test ./internal/protocol` 通过，`go test ./internal/app -run TestProjectImageParametersHonorsDeclaredAllowCustom` 通过。文档站未在本地构建：本 fork 的 `docs/` 缺少 Next 站点配置（无 `package.json`），只做了 MDX 静态检查（frontmatter 完整、代码块外无裸 `{` `}` 与 JSX 标签）。
+
+## 待用户验证：源点动力 Seedance 2.5 视频插件（tack2ai-seedance-25）
+
+- 已实现（自建插件）：新增 `custom-plugins/tack2ai-seedance-25`（打包产物 `tack2ai-seedance-25.yingce-plugin`，插件 ID `tack2ai-seedance-25`），对接源点动力（`https://ai.tack2ai.cn`）`td.video.v1` 视频协议：`POST /v1/videos` 创建、`GET /v1/tasks/{id}` 查询、`GET /v1/tasks/{id}/artifacts` 取产物，三个请求固定带 `X-TD-Contract: td.video.v1`，鉴权 Bearer。Base URL 默认 `https://ai.tack2ai.cn/v1`，宿主 `ChannelAPIURL` 负责 `/v1` 去重，换网关只改主机名。
+- 已实现（mode 推导）：上游要求显式 `mode` 且各模式素材互斥，插件用 `requestBindings` 推导——出现 `first_frame` / `last_frame` → `first_last_frame`（校验必须正好一张首帧 + 一张尾帧，且不带其他素材）；有参考视频或参考音频、或参考图 ≥2 张 → `multi_ref`；参考图正好 1 张 → `image_to_video`；无素材 → `text_to_video`（不下发 `input`）。未知 role 归一 `reference_image`。
+- 已实现（参数与边界）：`duration` 4–30、未配置下发 `-1`；`ratio` 默认 `adaptive`；`resolution` 默认 `720p`（转小写）；`generateAudio` → `parameters.generate_audio`；`watermark` 直接下发；`providerOptions.tack2ai-seedance-25.*` 暴露 `omni_reference_task_type` / `output_format` / `priority` / `generate_audio` / `return_last_frame` / `execution_expires_after` 与 `body` 合并；素材上限 30 图 / 10 视频 / 10 音频 / 合计 50 在校验里拦住。上游没有文档化幂等键，因此不声明 `idempotentCreate`，创建不做同键重试。
+- 已实现（响应兜底）：`status` / `state` / `task_status` / `data.status` / `output.task_status` 取第一个非空值转小写再按词表归一；产物地址支持 `content.video_url`、`video_url`、`output|data|result.video_url`、`artifacts[type=video].url`、`artifacts|outputs|videos` 列表等多路径；`images` 兜住 `last_frame_url`。上游文档未给任务查询与产物的响应体样例，真机联调若字段不同，只需改 `response` 映射。
+- [ ] 在管理后台导入 `custom-plugins/tack2ai-seedance-25.yingce-plugin`，用真实 API Key 跑一次文生视频，确认任务创建、状态轮询与产物落盘正常。
+- [ ] 用首帧 + 尾帧跑一次首尾帧补间，确认 `mode=first_last_frame` 与 `input.media` 类型正确；再用 2 张参考图跑 `multi_ref`。
+- [ ] 复核源点动力真实响应字段（`status` 取值集合、产物地址字段名）：若与插件兜底路径不同，补一条路径后重新 `node custom-plugins/build.mjs tack2ai-seedance-25` 并重新导入。
+- [ ] 确认模型名写法：源点动力文档给出的允许值是 `Seedance2.5 value`（含空格），渠道里按实际可调用的模型标识填写。
+- 本地验证：`node custom-plugins/build.mjs tack2ai-seedance-25` 打包通过（sha256 `54f171025020b2aa0e5bad2a946deb7c67db3d4593bacbe71de3927375355c77`）；新增 `backend/internal/protocol/tack2ai_seedance25_test.go`，`go test ./internal/protocol` 全部通过（含 mode 推导、providerOptions 覆盖、非法参数拒绝、响应映射与产物端点）；`node plugin-packages/check-version-bumps.mjs` 通过。未做真机联调（无上游 API Key），也未在浏览器里验收渠道配置页。

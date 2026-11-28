@@ -12,8 +12,9 @@ import (
 const seedance25Package = "volcengine-ark-seedance-25.yingce-plugin"
 const seedance25Provider = "volcengine-ark-seedance-25"
 
-func TestOfficialVolcengineArkSeedance25PackageIdentity(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "plugin-packages", seedance25Package))
+func TestVolcengineArkSeedance25PackageIdentity(t *testing.T) {
+	// 这个插件已从内置官方包降为自建插件（custom-plugins/），测试读取的是打包产物。
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "custom-plugins", seedance25Package))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,8 +34,8 @@ func TestOfficialVolcengineArkSeedance25PackageIdentity(t *testing.T) {
 	}
 }
 
-func TestOfficialVolcengineArkSeedance25BuildsOfficialRequest(t *testing.T) {
-	adapter := officialPackageAdapter(t, seedance25Package, seedance25Provider)
+func TestVolcengineArkSeedance25BuildsRequest(t *testing.T) {
+	adapter := customPackageAdapter(t, seedance25Package, seedance25Provider)
 	request := GenerationRequest{
 		Model:         "doubao-seedance-2-5-260628",
 		Prompt:        "让参考音频主导节奏",
@@ -76,8 +77,8 @@ func TestOfficialVolcengineArkSeedance25BuildsOfficialRequest(t *testing.T) {
 	}
 }
 
-func TestOfficialVolcengineArkSeedance25SupportsAudioOnlyAndLimits(t *testing.T) {
-	adapter := officialPackageAdapter(t, seedance25Package, seedance25Provider)
+func TestVolcengineArkSeedance25SupportsAudioOnlyAndLimits(t *testing.T) {
+	adapter := customPackageAdapter(t, seedance25Package, seedance25Provider)
 	audioOnly := GenerationRequest{Model: "doubao-seedance-2-5-260628", Audios: []MediaReference{{URL: "https://cdn.example/music.mp3"}}}
 	create, err := adapter.BuildCreate(context.Background(), RequestContext{Request: audioOnly})
 	if err != nil {
@@ -100,8 +101,8 @@ func TestOfficialVolcengineArkSeedance25SupportsAudioOnlyAndLimits(t *testing.T)
 	}
 }
 
-func TestOfficialVolcengineArkSeedance25SceneConstraints(t *testing.T) {
-	adapter := officialPackageAdapter(t, seedance25Package, seedance25Provider)
+func TestVolcengineArkSeedance25SceneConstraints(t *testing.T) {
+	adapter := customPackageAdapter(t, seedance25Package, seedance25Provider)
 	frame := MediaReference{URL: "https://cdn.example/first.png", Role: "first_frame"}
 	last := MediaReference{URL: "https://cdn.example/last.png", Role: "last_frame"}
 	regular := MediaReference{URL: "https://cdn.example/ref.png", Role: "reference_image"}
@@ -119,7 +120,6 @@ func TestOfficialVolcengineArkSeedance25SceneConstraints(t *testing.T) {
 		{"mixed image", GenerationRequest{Images: []MediaReference{frame, regular}}, true},
 		{"mixed video", GenerationRequest{Images: []MediaReference{frame}, Videos: []MediaReference{video}}, true},
 		{"mixed audio", GenerationRequest{Images: []MediaReference{frame}, Audios: []MediaReference{{URL: "https://cdn.example/music.mp3"}}}, true},
-		{"keyframe ratio", GenerationRequest{Images: []MediaReference{frame}, AspectRatio: "16:9"}, true},
 		{"unknown role", GenerationRequest{Images: []MediaReference{{URL: regular.URL, Role: "unknown"}}}, true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -139,6 +139,30 @@ func TestOfficialVolcengineArkSeedance25SceneConstraints(t *testing.T) {
 						t.Fatalf("keyframe role not preserved: %v", content)
 					}
 				}
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name        string
+		images      []MediaReference
+		operation   string
+		aspectRatio string
+		want        string
+	}{
+		{"keyframes keep selected ratio", []MediaReference{frame, last}, "", "9:16", "9:16"},
+		{"first frame keeps selected ratio", []MediaReference{frame}, "", "16:9", "16:9"},
+		{"keyframes without ratio fall back to adaptive", []MediaReference{frame, last}, "", "", "adaptive"},
+		{"drama tail frame follows the tail image", []MediaReference{{ID: "first-frame", Role: "first_frame", URL: frame.URL}}, "image_to_video", "16:9", "adaptive"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := GenerationRequest{Model: "doubao-seedance-2-5-260628", Images: test.images, Operation: test.operation, AspectRatio: test.aspectRatio}
+			create, err := adapter.BuildCreate(context.Background(), RequestContext{Request: request})
+			if err != nil {
+				t.Fatalf("frames must not be rejected: %v", err)
+			}
+			if body := manifestTestBody(t, create); body["ratio"] != test.want {
+				t.Fatalf("ratio = %v, want %s", body["ratio"], test.want)
 			}
 		})
 	}
@@ -173,8 +197,8 @@ func TestOfficialVolcengineArkSeedance25SceneConstraints(t *testing.T) {
 	}
 }
 
-func TestOfficialVolcengineArkSeedance25ParsesTaskAndLastFrame(t *testing.T) {
-	adapter := officialPackageAdapter(t, seedance25Package, seedance25Provider)
+func TestVolcengineArkSeedance25ParsesTaskAndLastFrame(t *testing.T) {
+	adapter := customPackageAdapter(t, seedance25Package, seedance25Provider)
 	created, err := adapter.ParseCreate(context.Background(), []byte(`{"id":"cgt-25-1"}`))
 	if err != nil || created.TaskID != "cgt-25-1" || created.Status != StatusPending {
 		t.Fatalf("created = %#v, err=%v", created, err)

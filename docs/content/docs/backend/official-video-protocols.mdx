@@ -12,7 +12,7 @@ description: 三家官方视频接口的输入模式、渠道配置与模型级�
 | 接口与地域 | 文生 / 关键帧 | 全能参考与音频 | 宿主开放边界 |
 | --- | --- | --- | --- |
 | [火山方舟 Seedance 2.0](https://docs.volcengine.com/docs/ark/seedance-2-0)，`volcengine-ark-video` | 同一 Contents Generations Tasks 接口；图片角色区分首帧、首尾帧和参考图 | 最多 9 图、3 视频、3 音频；音频须搭配图或视频。`generate_audio` 决定输出声轨，不表示允许单独输入音频 | 标准、Fast、Mini 按精确模型 ID 提供不同默认规格。默认不开放标准版的 4K；不能把 4K 价格、权限和并发假定为普通清晰度档位。 |
-| [火山方舟 Seedance 2.5](https://docs.volcengine.com/docs/ark/seedance-2-5)，`volcengine-ark-seedance-25` | 首帧/首尾帧要求 `ratio=adaptive` | 允许纯音频；标准版上限 30 图、10 视频、10 音频，Flash 为 10/5/5。全模态编辑要求参考视频、`adaptive` 与智能时长 `-1`，延长要求参考视频与 `adaptive` | 普通正整数时长控件不代表已开放智能时长、所有编辑模式或样片。`ep-` 推理接入点本身不说明其背后是哪一型号，需管理员确认。 |
+| [火山方舟 Seedance 2.5](https://docs.volcengine.com/docs/ark/seedance-2-5)，`volcengine-ark-seedance-25`（**自建插件**：原内置包已降级到 `custom-plugins/`，需在后台导入 `volcengine-ark-seedance-25.yingce-plugin`） | 同一 Contents Generations Tasks 接口；首帧/首尾帧的画幅按用户选择原样下发，非 `adaptive` 是否被接受由上游判定 | 允许纯音频；标准版上限 30 图、10 视频、10 音频，Flash 为 10/5/5。全模态编辑要求参考视频、`adaptive` 与智能时长 `-1`，延长要求参考视频与 `adaptive` | 插件不再因画幅拦截首帧/首尾帧；普通正整数时长控件不代表已开放智能时长、所有编辑模式或样片。`ep-` 推理接入点本身不说明其背后是哪一型号，需管理员确认。 |
 | [阿里云百炼 Wan 3.0](https://help.aliyun.com/zh/model-studio/wan3-video-generation-api-reference)，`dashscope-wan3-video` | 单一创建接口；纯文本，或首帧，或首帧+尾帧。仅尾帧不合法；关键帧与其他素材互斥 | `input.media` 按角色映射 10 图、5 视频、5 音频；图音视频可组合。视频、音频各合计最多 15 秒，输入视频与指定输出合计不超过 30 秒。可附 1 个 `file` 或 `link`，二者互斥且要求 `prompt_extend=true`。`parameters.audio` 独立控制输出声轨 | 默认 1080P、5 秒、自适应；不开放 4K。2.1.0 包检查角色、数量、已知时长及输出规格。缺少可信时长时不能据此证明合规。文件/网页是声明式扩展，不是画布上传入口。必须填写**业务空间**的地域 Endpoint，用同地域 Key 和模型，不使用公共缺省域名。 |
 | 可灵 4.0 / Flash，`kling-v4-official` | 文生、图生、Omni 分别使用独立端点。图生的画幅随素材。标准版可接首帧、中间帧和尾帧，Flash 图生只接一个首帧。[Flash 图生](https://kling.ai/document-api/api/video/4-0-flash/image-to-video.md) | 两种型号的 Omni 都能用参考图、特征参考视频、待编辑视频和主体。标准版还支持多关键帧和音色 ID。[标准版 Omni](https://kling.ai/document-api/api/video/4-0/video-omni.md) · [Flash Omni](https://kling.ai/document-api/api/video/4-0-flash/video-omni.md) | 标准版 3～30 秒、720p/1080p，Flash 3～20 秒、720p。文生支持六种固定比例，Omni 另支持 `adaptive`。画布提供首尾帧和参考图入口。中间帧、主体与音色 ID 可经插件参数传入。 |
 
@@ -49,7 +49,7 @@ description: 三家官方视频接口的输入模式、渠道配置与模型级�
 
 ## 同渠道多模型：现在怎么用
 
-例如一个北京方舟渠道可以让 Seedance 2.0 的 SKU 选 `volcengine-ark-video`，2.5 的 SKU 选 `volcengine-ark-seedance-25`，不需要为协议差异复制 Key。反过来，可灵标准版和 Flash 可以使用同一个插件发行件，但绑定**不同上游模型与能力配置**。只有地址、地域、凭据或治理边界不同时才拆渠道。
+例如一个北京方舟渠道可以让 Seedance 2.0 的 SKU 选 `volcengine-ark-video`，2.5 的 SKU 选 `volcengine-ark-seedance-25`（该协议现在来自自建插件，先在「插件 → 导入插件」上传），不需要为协议差异复制 Key。反过来，可灵标准版和 Flash 可以使用同一个插件发行件，但绑定**不同上游模型与能力配置**。只有地址、地域、凭据或治理边界不同时才拆渠道。
 
 同一 `providerId` 的多个已安装发行版也能并行使用。对于尚未记录插件发行版本的渠道模型，服务端按本实例当前启用的发行版解析，任务入队时会把当时的版本摘要写入任务快照。明确选择某个版本后，该模型持续使用对应摘要，直到管理员重新切换。进入**后台 → 渠道管理 → 编辑参数 → 基本信息 → 插件发行版本**，可以为每个渠道模型分别选择版本并保存。「能力与参数」显示模型所选版本，插件详情列出归档版本和摘要。要将一个 SKU 升级或回滚，只需重新选择该 SKU 的版本，核对模式、默认值与价格后保存。
 

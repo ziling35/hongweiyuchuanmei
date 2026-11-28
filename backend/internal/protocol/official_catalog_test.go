@@ -845,7 +845,18 @@ func TestOfficialTextProtocolsDeliverInstructions(t *testing.T) {
 
 func officialPackageAdapter(t *testing.T, packageName, providerID string) Adapter {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "plugin-packages", packageName))
+	return packageAdapterAt(t, filepath.Join("..", "..", "..", "plugin-packages", packageName), providerID)
+}
+
+// customPackageAdapter 读取 custom-plugins 目录下的自建插件产物，用于已从内置官方包降级的协议。
+func customPackageAdapter(t *testing.T, packageName, providerID string) Adapter {
+	t.Helper()
+	return packageAdapterAt(t, filepath.Join("..", "..", "..", "custom-plugins", packageName), providerID)
+}
+
+func packageAdapterAt(t *testing.T, packagePath, providerID string) Adapter {
+	t.Helper()
+	data, err := os.ReadFile(packagePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -862,7 +873,7 @@ func officialPackageAdapter(t *testing.T, packageName, providerID string) Adapte
 			return adapter
 		}
 	}
-	t.Fatalf("provider %s is missing from %s", providerID, packageName)
+	t.Fatalf("provider %s is missing from %s", providerID, packagePath)
 	return nil
 }
 

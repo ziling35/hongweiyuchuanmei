@@ -20,7 +20,7 @@
 
 ## 统一字段映射
 
-短剧只带上一段尾帧时使用首帧模式和 `adaptive` 画幅。同时带人物或场景图时使用全模态参考，上一段尾帧是第一张普通参考图。
+短剧只带上一段尾帧时使用首帧模式，画幅跟随尾帧（`adaptive`）。同时带人物或场景图时使用全模态参考，上一段尾帧是第一张普通参考图。
 
 | 统一字段 | 类型 | 必填 | 官方字段 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -29,7 +29,7 @@
 | `images` | media[] | 否 | `content[type=image_url]` | 保留 `first_frame`、`last_frame`、`reference_image` 等 role。 |
 | `videos` | media[] | 否 | `content[type=video_url]` | 统一映射为 `reference_video`。 |
 | `audios` | media[] | 否 | `content[type=audio_url]` | 统一映射为 `reference_audio`，Seedance 2.5 支持单独传入。 |
-| `aspectRatio` | string | 否 | `ratio` | 默认 `adaptive`。 |
+| `aspectRatio` | string | 否 | `ratio` | 原样下发用户选择的画幅；未选择时用 `adaptive`。首尾帧不改写比例（短剧「上一段尾帧当首帧」那条路径除外，它固定 `adaptive`）。 |
 | `resolution` | string | 否 | `resolution` | 默认 `720p`，支持 480p/720p/1080p。 |
 | `duration` | integer | 否 | `duration` | 默认 `-1`，由模型选择时长；显式时长为 4–30 秒。 |
 | `generateAudio` | boolean | 否 | `generate_audio` | 是否生成有声视频。 |
@@ -73,7 +73,7 @@
 
 - 最多 30 张参考图片、10 个参考视频、10 个参考音频。
 - 参考视频和音频的公网地址或 `asset://` 素材 ID由宿主提供；插件不上传素材，也不把本地路径放进请求。
-- 首帧和尾帧最多各一张，尾帧必须同时提供首帧。首尾帧不得与普通参考图、视频或音频混用；首尾帧请求显式填写非 `adaptive` 比例时拒绝请求。
+- 首帧和尾帧最多各一张，尾帧必须同时提供首帧。首尾帧不得与普通参考图、视频或音频混用；首尾帧的画幅按用户选择原样下发，插件不作拦截，也不再因为首尾帧没有使用 `adaptive` 而拒绝请求，上游是否接受由模型判定。短剧「上一段尾帧当首帧」那条路径固定 `adaptive`，用于让输出跟随尾帧比例。
 - 显式 `omni_reference_task_type=edit/extend` 必须有参考视频，插件将比例固定为 `adaptive`；`edit` 同时将输出时长固定为 `-1`，覆盖宿主传入的比例/时长。`auto` 的任务类型由模型判定，上游仍可能因实际任务不符合参数限制而报错。
 - `draft=true` 必须同时选择 `resolution=480p`。视频和音频各自总时长均不得超过 30 秒；媒体格式、大小、实际时长及模型判定由上游继续校验。
 - 插件允许纯音频请求，因为 Seedance 2.5 官方支持该组合；Seedance 2.0 应继续使用 `volcengine-ark-seedance` 旧版插件。
@@ -110,7 +110,7 @@
   "apiVersion": "yingce.plugin/v2",
   "id": "volcengine-ark-seedance-25",
   "name": "火山方舟 Seedance 2.5 官方视频生成",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Volcengine / 影策",
   "description": "火山方舟官方 /api/v3 视频生成接口，支持 Seedance 2.5 的文本、图片、视频和音频全模态输入。",
   "permissions": [
@@ -751,78 +751,6 @@
               ]
             },
             "message": "Seedance 2.5 首尾帧不能与全模态参考混用"
-          },
-          {
-            "assert": {
-              "$or": [
-                {
-                  "$not": {
-                    "$gt": [
-                      {
-                        "$add": [
-                          {
-                            "$len": {
-                              "$filter": {
-                                "from": {
-                                  "$ref": "request.images"
-                                },
-                                "as": "media",
-                                "where": {
-                                  "$eq": [
-                                    {
-                                      "$coalesce": [
-                                        {
-                                          "$ref": "media.role"
-                                        },
-                                        "reference_image"
-                                      ]
-                                    },
-                                    "first_frame"
-                                  ]
-                                }
-                              }
-                            }
-                          },
-                          {
-                            "$len": {
-                              "$filter": {
-                                "from": {
-                                  "$ref": "request.images"
-                                },
-                                "as": "media",
-                                "where": {
-                                  "$eq": [
-                                    {
-                                      "$coalesce": [
-                                        {
-                                          "$ref": "media.role"
-                                        },
-                                        "reference_image"
-                                      ]
-                                    },
-                                    "last_frame"
-                                  ]
-                                }
-                              }
-                            }
-                          }
-                        ]
-                      },
-                      0
-                    ]
-                  }
-                },
-                {
-                  "$eq": [
-                    {
-                      "$ref": "bindings.ratio"
-                    },
-                    "adaptive"
-                  ]
-                }
-              ]
-            },
-            "message": "Seedance 2.5 首尾帧仅支持 adaptive 比例"
           },
           {
             "assert": {

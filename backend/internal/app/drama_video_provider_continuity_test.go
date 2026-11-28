@@ -25,7 +25,6 @@ func TestDramaVideoProviderContinuity(t *testing.T) {
 		{"kling-v4-official", "kling-4.0", "720p", "first_frame", "", "@Image2"},
 		{"dashscope-minimax-video", "MiniMax/MiniMax-H3", "768P", "reference_image", "参考图1作为", "参考图2中的"},
 		{"dashscope-wan3-video", "wan3.0-video-prime", "720p", "reference_image", "参考图1作为", "参考图2中的"},
-		{"volcengine-ark-seedance-25", "doubao-seedance-2-5-260628", "720p", "reference_image", "参考图1作为", "参考图2中的"},
 	} {
 		t.Run(test.model, func(t *testing.T) {
 			video := dramaVideoFixture()
@@ -62,15 +61,11 @@ func TestDramaVideoProviderContinuity(t *testing.T) {
 			body := spec.Body.(map[string]any)
 			var prompt string
 			var media []any
-			if test.provider == "kling-v4-official" || test.provider == "volcengine-ark-seedance-25" {
-				key := "content"
-				if test.provider == "kling-v4-official" {
-					key = "contents"
-					if spec.Path != "/omni-video/"+test.model {
-						t.Fatal(spec.Path)
-					}
+			if test.provider == "kling-v4-official" {
+				if spec.Path != "/omni-video/"+test.model {
+					t.Fatal(spec.Path)
 				}
-				parts := body[key].([]any)
+				parts := body["contents"].([]any)
 				prompt, _ = parts[0].(map[string]any)["text"].(string)
 				media = parts[1:]
 			} else {
@@ -108,9 +103,6 @@ func TestDramaVideoProviderContinuity(t *testing.T) {
 			input.Metadata = map[string]any{"videoEditOperation": preview.Operation}
 			input.Prompt = preview.bindVideoReferences(input.Metadata) + "人物起身。"
 			spec = buildDramaReferenceSpec(t, input, protocolRequestFromInput(input))
-			if test.provider == "volcengine-ark-seedance-25" && spec.Body.(map[string]any)["ratio"] != "adaptive" {
-				t.Fatalf("Seedance must follow the actual tail image ratio: %v", spec.Body)
-			}
 		})
 	}
 
